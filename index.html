@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TAP Roleplay</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #0b0b0b;
+            color: white;
+        }
+
+        header {
+            height: 75px;
+            background: #111111;
+            border-bottom: 1px solid #252525;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 7%;
+        }
+
+        .logo {
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        .logo span {
+            color: #f97316;
+        }
+
+        nav {
+            display: flex;
+            gap: 25px;
+        }
+
+        nav a {
+            color: #aaa;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+
+        nav a:hover {
+            color: #f97316;
+        }
+
+        .discord-btn {
+            background: #f97316;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .discord-btn:hover {
+            background: #ea580c;
+        }
+
+        .hero {
+            min-height: 520px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            background:
+                radial-gradient(circle at center, rgba(249,115,22,0.18), transparent 45%),
+                #0b0b0b;
+        }
+
+        .hero-content {
+            max-width: 800px;
+        }
+
+        .hero h1 {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+
+        .hero h1 span {
+            color: #f97316;
+        }
+
+        .hero p {
+            color: #aaa;
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .main-btn {
+            display: inline-block;
+            background: #f97316;
+            color: white;
+            text-decoration: none;
+            padding: 15px 28px;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .main-btn:hover {
+            background: #ea580c;
+            transform: translateY(-2px);
+        }
+
+        .section {
+            padding: 70px 7%;
+            background: #101010;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .section-title h2 {
+            font-size: 35px;
+        }
+
+        .section-title p {
+            color: #888;
+            margin-top: 10px;
+        }
+
+        .products {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 20px;
+        }
+
+        .product {
+            background: #171717;
+            border: 1px solid #252525;
+            border-radius: 12px;
+            padding: 25px;
+            transition: 0.2s;
+        }
+
+        .product:hover {
+            border-color: #f97316;
+            transform: translateY(-4px);
+        }
+
+        .product-icon {
+            font-size: 35px;
+            margin-bottom: 15px;
+        }
+
+        .product h3 {
+            margin-bottom: 10px;
+        }
+
+        .product p {
+            color: #888;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .price {
+            color: #f97316;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .buy-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 7px;
+            background: #f97316;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            background: #0b0b0b;
+            color: #666;
+        }
+
+        @media (max-width: 600px) {
+            header {
+                padding: 0 20px;
+            }
+
+            nav {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 42px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">
+        TAP<span>ROLEPLAY</span>
+    </div>
+
+    <nav>
+        <a href="#home">Start</a>
+        <a href="#shop">Sklep</a>
+        <a href="#contact">Kontakt</a>
+    </nav>
+
+    <button class="discord-btn">
+        Zaloguj przez Discord
+    </button>
+</header>
+
+<section class="hero" id="home">
+    <div class="hero-content">
+
+        <h1>
+            TAP <span>ROLEPLAY</span>
+        </h1>
+
+        <p>
+            Witaj na oficjalnym sklepie serwera TAP Roleplay.
+            Znajdź interesujące Cię produkty i ulepsz swoją rozgrywkę.
+        </p>
+
+        <a href="#shop" class="main-btn">
+            PRZEJDŹ DO SKLEPU
+        </a>
+
+    </div>
+</section>
+
+<section class="section" id="shop">
+
+    <div class="section-title">
+        <h2>SKLEP</h2>
+        <p>Wybierz interesujący Cię produkt</p>
+    </div>
+
+    <div class="products">
+
+        <div class="product">
+            <div class="product-icon">💰</div>
+
+            <h3>Pakiet pieniędzy</h3>
+
+            <p>
+                Otrzymaj dodatkowe środki na swoje konto w grze.
+            </p>
+
+            <div class="price">
+                10 PLN
+            </div>
+
+            <button class="buy-btn">
+                KUP TERAZ
+            </button>
+        </div>
+
+        <div class="product">
+            <div class="product-icon">🚗</div>
+
+            <h3>Pakiet pojazdów</h3>
+
+            <p>
+                Odblokuj specjalny pojazd dostępny na serwerze.
+            </p>
+
+            <div class="price">
+                20 PLN
+            </div>
+
+            <button class="buy-btn">
+                KUP TERAZ
+            </button>
+        </div>
+
+        <div class="product">
+            <div class="product-icon">👑</div>
+
+            <h3>VIP</h3>
+
+            <p>
+                Otrzymaj rangę VIP i dodatkowe korzyści na serwerze.
+            </p>
+
+            <div class="price">
+                30 PLN
+            </div>
+
+            <button class="buy-btn">
+                KUP TERAZ
+            </button>
+        </div>
+
+    </div>
+
+</section>
+
+<footer id="contact">
+    © 2026 TAP Roleplay — Wszystkie prawa zastrzeżone.
+</footer>
+
+</body>
+</html>
