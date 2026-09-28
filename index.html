@@ -180,6 +180,11 @@
       background: #0b0b0f;
       color: white;
       margin-bottom: 10px;
+      outline: none;
+    }
+
+    .uid-box input:focus {
+      border-color: #ff6a00;
     }
 
     .message {
@@ -188,11 +193,38 @@
       font-size: 14px;
     }
 
+    .success {
+      color: #4ade80;
+    }
+
+    .error {
+      color: #ff6b6b;
+    }
+
     footer {
       text-align: center;
       color: #666;
       padding: 30px;
       border-top: 1px solid #222;
+    }
+
+    @media (max-width: 700px) {
+      header {
+        padding: 0 20px;
+      }
+
+      nav {
+        display: none;
+      }
+
+      .hero h1 {
+        font-size: 36px;
+      }
+
+      .account {
+        margin-left: 20px;
+        margin-right: 20px;
+      }
     }
   </style>
 </head>
@@ -243,9 +275,15 @@
 <script>
   let loggedUser = null;
 
+  // =========================
+  // KONTO
+  // =========================
+
   async function loadAccount() {
     try {
-      const response = await fetch("/me");
+      const response = await fetch("/me", {
+        cache: "no-store"
+      });
 
       if (!response.ok) {
         return;
@@ -260,134 +298,265 @@
       loggedUser = data;
 
       document.getElementById("account").style.display = "block";
+
       document.getElementById("username").textContent =
-        data.username || data.global_name || data.discord_id;
+        data.username ||
+        data.global_name ||
+        data.discord_id ||
+        "Użytkownik";
 
       document.getElementById("balance").textContent =
         Number(data.balance || 0) + " PLN";
 
       if (data.isAdmin) {
-        document.getElementById("adminButton").style.display = "inline-block";
+        document.getElementById("adminButton").style.display =
+          "inline-block";
       }
 
     } catch (error) {
-      console.error(error);
+      console.error("Błąd konta:", error);
     }
   }
+
+
+  // =========================
+  // PRODUKTY
+  // =========================
 
   async function loadProducts() {
     const container = document.getElementById("products");
 
+    container.innerHTML = "Ładowanie produktów...";
+
     try {
-      const response = await fetch("/api/products");
+      const response = await fetch("/api/products", {
+        cache: "no-store"
+      });
 
       if (!response.ok) {
-        throw new Error("Nie udało się pobrać produktów.");
+        throw new Error(
+          "API zwróciło błąd HTTP " + response.status
+        );
       }
 
-      const products = await response.json();
+      const data = await response.json();
 
-      if (!products.length) {
-        container.innerHTML = "<p>Brak dostępnych produktów.</p>";
+      /*
+        Worker zwraca:
+
+        {
+          "products": [
+            {
+              "id": 2,
+              "name": "Unban",
+              "price": 10,
+              "type": "unban"
+            }
+          ]
+        }
+
+        Dlatego pobieramy data.products.
+      */
+
+      const products = Array.isArray(data)
+        ? data
+        : Array.isArray(data.products)
+          ? data.products
+          : [];
+
+      if (products.length === 0) {
+        container.innerHTML =
+          "<p>Brak dostępnych produktów.</p>";
         return;
       }
 
-      container.innerHTML = products.map(product => `
-        <div class="product">
-          <h3>${escapeHtml(product.name)}</h3>
+      container.innerHTML = products.map(product => {
 
-          <p>
-            ${escapeHtml(product.description || "")}
-          </p>
+        const productId = Number(product.id);
+        const productName = escapeHtml(product.name || "Produkt");
+        const productDescription =
+          escapeHtml(product.description || "");
 
-          <div class="price">
-            ${Number(product.price)} PLN
-          </div>
+        const productPrice =
+          Number(product.price || 0);
 
-          ${
-            product.type === "unban"
-            ? `
-              <div class="uid-box" id="uid-box-${product.id}">
+        if (product.type === "unban") {
+
+          return `
+            <div class="product">
+
+              <h3>${productName}</h3>
+
+              <p>
+                ${productDescription}
+              </p>
+
+              <div class="price">
+                ${productPrice} PLN
+              </div>
+
+              <div
+                class="uid-box"
+                id="uid-box-${productId}"
+              >
+
                 <input
-                  id="uid-${product.id}"
+                  id="uid-${productId}"
                   type="number"
                   placeholder="Wpisz UID gracza"
                   min="1"
+                  step="1"
                 >
 
-                <button onclick="buyUnban(${product.id})">
+                <button
+                  id="confirm-button-${productId}"
+                  onclick="buyUnban(${productId})"
+                >
                   Potwierdź zakup
                 </button>
 
-                <div class="message" id="message-${product.id}"></div>
+                <div
+                  class="message"
+                  id="message-${productId}"
+                ></div>
+
               </div>
 
               <button
-                id="buy-button-${product.id}"
-                onclick="showUidBox(${product.id})"
+                id="buy-button-${productId}"
+                onclick="showUidBox(${productId})"
               >
                 Kup unbana
               </button>
-            `
-            : `
-              <button onclick="buyProduct(${product.id})">
-                Kup
-              </button>
-            `
-          }
-        </div>
-      `).join("");
+
+            </div>
+          `;
+
+        }
+
+        return `
+          <div class="product">
+
+            <h3>${productName}</h3>
+
+            <p>
+              ${productDescription}
+            </p>
+
+            <div class="price">
+              ${productPrice} PLN
+            </div>
+
+            <button
+              onclick="buyProduct(${productId})"
+            >
+              Kup
+            </button>
+
+          </div>
+        `;
+
+      }).join("");
 
     } catch (error) {
-      container.innerHTML =
-        "<p>Nie udało się załadować produktów.</p>";
 
-      console.error(error);
+      console.error("Błąd produktów:", error);
+
+      container.innerHTML = `
+        <p class="error">
+          Nie udało się załadować produktów.
+        </p>
+      `;
     }
   }
 
+
+  // =========================
+  // POKAZANIE UID
+  // =========================
+
   function showUidBox(productId) {
+
     if (!loggedUser) {
       alert("Najpierw zaloguj się przez Discord.");
       window.location.href = "/login";
       return;
     }
 
-    document.getElementById(
-      "uid-box-" + productId
-    ).style.display = "block";
+    const uidBox =
+      document.getElementById("uid-box-" + productId);
 
-    document.getElementById(
-      "buy-button-" + productId
-    ).style.display = "none";
-  }
+    const buyButton =
+      document.getElementById("buy-button-" + productId);
 
-  async function buyUnban(productId) {
-    if (!loggedUser) {
-      alert("Najpierw zaloguj się przez Discord.");
+    if (!uidBox || !buyButton) {
       return;
     }
 
-    const input = document.getElementById("uid-" + productId);
-    const message = document.getElementById("message-" + productId);
-    const button = input.parentElement.querySelector("button");
+    uidBox.style.display = "block";
+    buyButton.style.display = "none";
+
+    const input =
+      document.getElementById("uid-" + productId);
+
+    if (input) {
+      input.focus();
+    }
+  }
+
+
+  // =========================
+  // KUPNO UNBANA
+  // =========================
+
+  async function buyUnban(productId) {
+
+    if (!loggedUser) {
+      alert("Najpierw zaloguj się przez Discord.");
+      window.location.href = "/login";
+      return;
+    }
+
+    const input =
+      document.getElementById("uid-" + productId);
+
+    const message =
+      document.getElementById("message-" + productId);
+
+    const button =
+      document.getElementById("confirm-button-" + productId);
+
+    if (!input || !message || !button) {
+      return;
+    }
 
     const uid = Number(input.value);
 
+    // Sprawdzenie UID
     if (!Number.isInteger(uid) || uid <= 0) {
-      message.textContent = "Wpisz poprawny UID.";
+
+      message.className = "message error";
+      message.textContent =
+        "Wpisz poprawny UID gracza.";
+
       return;
     }
 
     button.disabled = true;
-    message.textContent = "Przetwarzanie zakupu...";
+
+    message.className = "message";
+    message.textContent =
+      "Przetwarzanie zakupu...";
 
     try {
+
       const response = await fetch("/api/purchase", {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json"
         },
+
         body: JSON.stringify({
           product_id: productId,
           uid: uid
@@ -397,21 +566,39 @@
       const data = await response.json();
 
       if (!response.ok) {
+
+        message.className = "message error";
+
         message.textContent =
-          data.error || "Nie udało się wykonać zakupu.";
+          data.error ||
+          data.message ||
+          "Nie udało się wykonać zakupu.";
 
         button.disabled = false;
+
         return;
       }
 
-      message.textContent =
-        "Zakup zakończony. Bot Discord wysłał komendę unbana.";
+      // Aktualizacja salda
+      if (typeof data.balance !== "undefined") {
 
-      document.getElementById("balance").textContent =
-        Number(data.balance) + " PLN";
+        document.getElementById("balance").textContent =
+          Number(data.balance) + " PLN";
+      }
+
+      message.className = "message success";
+
+      message.textContent =
+        "Zakup zakończony. Komenda unbana została wysłana.";
+
+      input.disabled = true;
+      button.disabled = true;
 
     } catch (error) {
-      console.error(error);
+
+      console.error("Błąd zakupu:", error);
+
+      message.className = "message error";
 
       message.textContent =
         "Wystąpił błąd podczas zakupu.";
@@ -420,17 +607,31 @@
     }
   }
 
+
+  // =========================
+  // INNE PRODUKTY
+  // =========================
+
   async function buyProduct(productId) {
+
     if (!loggedUser) {
       alert("Najpierw zaloguj się przez Discord.");
       window.location.href = "/login";
       return;
     }
 
-    alert("Ten produkt nie jest jeszcze skonfigurowany do zakupu.");
+    alert(
+      "Ten produkt nie jest jeszcze skonfigurowany do zakupu."
+    );
   }
 
+
+  // =========================
+  // BEZPIECZNE HTML
+  // =========================
+
   function escapeHtml(value) {
+
     return String(value)
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
@@ -439,8 +640,14 @@
       .replaceAll("'", "&#039;");
   }
 
+
+  // =========================
+  // START
+  // =========================
+
   loadAccount();
   loadProducts();
+
 </script>
 
 </body>
