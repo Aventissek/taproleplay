@@ -97,6 +97,31 @@ export default {
       });
     }
 
+if (url.pathname === "/me") {
+  const cookie = request.headers.get("Cookie") || "";
+  const match = cookie.match(/tap_session=([^;]+)/);
+
+  if (!match) {
+    return new Response(
+      JSON.stringify({ loggedIn: false }),
+      {
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({ loggedIn: true }),
+    {
+      headers: {
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+    
     return env.ASSETS.fetch(request);
   }
 };
