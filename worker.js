@@ -112,6 +112,48 @@ if (url.pathname === "/me") {
     );
   }
 
+  try {
+    const decoded = atob(match[1].split(".")[0]);
+    const [discordId, username] = decoded.split(":");
+
+    return new Response(
+      JSON.stringify({
+        loggedIn: true,
+        discordId,
+        username,
+        balance: 0
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  } catch {
+    return new Response(
+      JSON.stringify({ loggedIn: false }),
+      {
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+}
+  const cookie = request.headers.get("Cookie") || "";
+  const match = cookie.match(/tap_session=([^;]+)/);
+
+  if (!match) {
+    return new Response(
+      JSON.stringify({ loggedIn: false }),
+      {
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
   return new Response(
     JSON.stringify({ loggedIn: true }),
     {
