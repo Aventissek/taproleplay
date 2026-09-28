@@ -318,5 +318,21 @@
     © 2026 TAP Roleplay — Wszystkie prawa zastrzeżone.
 </footer>
 
+<script>
+fetch("/me")
+  .then(response => response.json())
+  .then(data => {
+    if (data.loggedIn) {
+      const button = document.querySelector(".discord-btn");
+
+      if (button) {
+        button.textContent = "Zalogowano przez Discord";
+        button.removeAttribute("href");
+        button.style.cursor = "default";
+      }
+    }
+  });
+</script>
+    
 </body>
 </html>
