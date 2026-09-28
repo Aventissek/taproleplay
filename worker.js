@@ -20,12 +20,15 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // Logowanie przez Discord
     if (url.pathname === "/login") {
       const discordUrl =
         "https://discord.com/oauth2/authorize" +
-        "?client_id=" + encodeURIComponent(env.DISCORD_CLIENT_ID) +
+        "?client_id=" +
+        encodeURIComponent(env.DISCORD_CLIENT_ID) +
         "&response_type=code" +
-        "&redirect_uri=" + encodeURIComponent(
+        "&redirect_uri=" +
+        encodeURIComponent(
           "https://taproleplay.kosscirzynskikuba-4a4.workers.dev/callback"
         ) +
         "&scope=identify";
@@ -33,6 +36,7 @@ export default {
       return Response.redirect(discordUrl, 302);
     }
 
+    // Powrót z Discorda
     if (url.pathname === "/callback") {
       const code = url.searchParams.get("code");
 
@@ -79,13 +83,21 @@ export default {
 
       const user = await userResponse.json();
 
+      if (!user.id || !user.username) {
+        return new Response("Nie udało się pobrać danych Discord.", {
+          status: 400
+        });
+      }
+
       const sessionData = `${user.id}:${user.username}`;
+
       const signature = await sign(
         sessionData,
         env.SESSION_SECRET
       );
 
-      const cookieValue = btoa(sessionData) + "." + signature;
+      const cookieValue =
+        btoa(sessionData) + "." + signature;
 
       return new Response(null, {
         status: 302,
@@ -97,73 +109,72 @@ export default {
       });
     }
 
-if (url.pathname === "/me") {
-  const cookie = request.headers.get("Cookie") || "";
-  const match = cookie.match(/tap_session=([^;]+)/);
+    // Informacje o zalogowanym użytkowniku
+    if (url.pathname === "/me") {
+      const cookie =
+        request.headers.get("Cookie") || "";
 
-  if (!match) {
-    return new Response(
-      JSON.stringify({ loggedIn: false }),
-      {
-        headers: {
-          "Content-Type": "application/json"
-        }
+      const match =
+        cookie.match(/tap_session=([^;]+)/);
+
+      if (!match) {
+        return new Response(
+          JSON.stringify({
+            loggedIn: false
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
       }
-    );
-  }
 
-  try {
-    const decoded = atob(match[1].split(".")[0]);
-    const [discordId, username] = decoded.split(":");
+      try {
+        const decoded =
+          atob(match[1].split(".")[0]);
 
-    return new Response(
-      JSON.stringify({
-        loggedIn: true,
-        discordId,
-        username,
-        balance: 0
-      }),
-      {
-        headers: {
-          "Content-Type": "application/json"
+        const separator =
+          decoded.indexOf(":");
+
+        if (separator === -1) {
+          throw new Error("Invalid session");
         }
-      }
-    );
-  } catch {
-    return new Response(
-      JSON.stringify({ loggedIn: false }),
-      {
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }
-    );
-  }
-}
-  const cookie = request.headers.get("Cookie") || "";
-  const match = cookie.match(/tap_session=([^;]+)/);
 
-  if (!match) {
-    return new Response(
-      JSON.stringify({ loggedIn: false }),
-      {
-        headers: {
-          "Content-Type": "application/json"
-        }
-      }
-    );
-  }
+        const discordId =
+          decoded.slice(0, separator);
 
-  return new Response(
-    JSON.stringify({ loggedIn: true }),
-    {
-      headers: {
-        "Content-Type": "application/json"
+        const username =
+          decoded.slice(separator + 1);
+
+        return new Response(
+          JSON.stringify({
+            loggedIn: true,
+            discordId,
+            username,
+            balance: 0
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
+      } catch {
+        return new Response(
+          JSON.stringify({
+            loggedIn: false
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
       }
     }
-  );
-}
-    
+
+    // Reszta strony
     return env.ASSETS.fetch(request);
   }
 };
