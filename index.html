@@ -1,434 +1,446 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TAP Roleplay — Sklep</title>
 
-    <title>TAP Roleplay</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b0b0f;
+      color: #fff;
+    }
 
-        body {
-            font-family: Arial, sans-serif;
-            background: #0b0b0b;
-            color: white;
-        }
+    header {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 7%;
+      background: #111116;
+      border-bottom: 1px solid #24242c;
+    }
 
-        header {
-            min-height: 75px;
-            background: #111111;
-            border-bottom: 1px solid #252525;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 7%;
-            gap: 20px;
-        }
+    .logo {
+      font-size: 23px;
+      font-weight: 900;
+      color: #ff6a00;
+    }
 
-        .logo {
-            font-size: 25px;
-            font-weight: bold;
-            white-space: nowrap;
-        }
+    nav {
+      display: flex;
+      gap: 25px;
+    }
 
-        .logo span {
-            color: #f97316;
-        }
+    nav a {
+      color: #aaa;
+      text-decoration: none;
+    }
 
-        nav {
-            display: flex;
-            gap: 25px;
-        }
+    nav a:hover {
+      color: #ff6a00;
+    }
 
-        nav a {
-            color: #aaa;
-            text-decoration: none;
-            transition: 0.2s;
-        }
+    .login {
+      background: #5865f2;
+      color: white;
+      padding: 11px 18px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+    }
 
-        nav a:hover {
-            color: #f97316;
-        }
+    .hero {
+      text-align: center;
+      padding: 80px 20px 45px;
+    }
 
-        .account-area {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+    .hero h1 {
+      font-size: 48px;
+      margin: 0 0 15px;
+    }
 
-        .discord-btn,
-        .admin-btn {
-            display: inline-block;
-            background: #f97316;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            text-decoration: none;
-        }
+    .hero h1 span {
+      color: #ff6a00;
+    }
 
-        .discord-btn:hover,
-        .admin-btn:hover {
-            background: #ea580c;
-        }
+    .hero p {
+      color: #999;
+      font-size: 17px;
+    }
 
-        .admin-btn {
-            background: #7c3aed;
-        }
+    .account {
+      margin: 20px auto;
+      max-width: 900px;
+      padding: 18px;
+      background: #121218;
+      border: 1px solid #25252d;
+      border-radius: 12px;
+      display: none;
+    }
 
-        .admin-btn:hover {
-            background: #6d28d9;
-        }
+    .balance {
+      color: #ff6a00;
+      font-weight: bold;
+    }
 
-        .account-info {
-            display: none;
-            text-align: right;
-        }
+    .admin {
+      display: none;
+      margin-left: 10px;
+      color: white;
+      background: #ff6a00;
+      padding: 9px 14px;
+      border-radius: 7px;
+      text-decoration: none;
+    }
 
-        .account-username {
-            font-weight: bold;
-        }
+    .shop {
+      max-width: 1100px;
+      margin: 30px auto 100px;
+      padding: 0 20px;
+    }
 
-        .account-balance {
-            color: #f97316;
-            font-size: 13px;
-            margin-top: 3px;
-        }
+    .shop h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
 
-        .hero {
-            min-height: 520px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 40px 20px;
-            background:
-                radial-gradient(circle at center, rgba(249,115,22,0.18), transparent 45%),
-                #0b0b0b;
-        }
+    .products {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
 
-        .hero-content {
-            max-width: 800px;
-        }
+    .product {
+      background: #121218;
+      border: 1px solid #292932;
+      border-radius: 14px;
+      padding: 25px;
+      transition: .2s;
+    }
 
-        .hero h1 {
-            font-size: 60px;
-            margin-bottom: 15px;
-        }
+    .product:hover {
+      transform: translateY(-3px);
+      border-color: #ff6a00;
+    }
 
-        .hero h1 span {
-            color: #f97316;
-        }
+    .product h3 {
+      margin-top: 0;
+      font-size: 22px;
+    }
 
-        .hero p {
-            color: #aaa;
-            font-size: 18px;
-            line-height: 1.6;
-            margin-bottom: 30px;
-        }
+    .product p {
+      color: #999;
+      min-height: 45px;
+    }
 
-        .main-btn {
-            display: inline-block;
-            background: #f97316;
-            color: white;
-            text-decoration: none;
-            padding: 15px 28px;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: 0.2s;
-        }
+    .price {
+      font-size: 25px;
+      font-weight: bold;
+      color: #ff6a00;
+      margin: 20px 0;
+    }
 
-        .main-btn:hover {
-            background: #ea580c;
-            transform: translateY(-2px);
-        }
+    button {
+      width: 100%;
+      border: 0;
+      padding: 12px;
+      border-radius: 8px;
+      background: #ff6a00;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
 
-        .section {
-            padding: 70px 7%;
-            background: #101010;
-        }
+    button:hover {
+      background: #ff7b1a;
+    }
 
-        .section-title {
-            text-align: center;
-            margin-bottom: 40px;
-        }
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
 
-        .section-title h2 {
-            font-size: 35px;
-        }
+    .uid-box {
+      display: none;
+      margin-top: 15px;
+    }
 
-        .section-title p {
-            color: #888;
-            margin-top: 10px;
-        }
+    .uid-box input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #0b0b0f;
+      color: white;
+      margin-bottom: 10px;
+    }
 
-        .products {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-            gap: 20px;
-        }
+    .message {
+      margin-top: 12px;
+      color: #aaa;
+      font-size: 14px;
+    }
 
-        .product {
-            background: #171717;
-            border: 1px solid #252525;
-            border-radius: 12px;
-            padding: 25px;
-            transition: 0.2s;
-        }
-
-        .product:hover {
-            border-color: #f97316;
-            transform: translateY(-4px);
-        }
-
-        .product-icon {
-            font-size: 35px;
-            margin-bottom: 15px;
-        }
-
-        .product h3 {
-            margin-bottom: 10px;
-        }
-
-        .product p {
-            color: #888;
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 20px;
-        }
-
-        .price {
-            color: #f97316;
-            font-size: 22px;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .buy-btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 7px;
-            background: #f97316;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        footer {
-            text-align: center;
-            padding: 30px;
-            background: #0b0b0b;
-            color: #666;
-        }
-
-        @media (max-width: 850px) {
-            header {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-
-            .account-area {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .account-info {
-                text-align: left;
-            }
-        }
-
-        @media (max-width: 600px) {
-            nav {
-                display: none;
-            }
-
-            .hero h1 {
-                font-size: 42px;
-            }
-        }
-    </style>
+    footer {
+      text-align: center;
+      color: #666;
+      padding: 30px;
+      border-top: 1px solid #222;
+    }
+  </style>
 </head>
 
 <body>
 
 <header>
+  <div class="logo">TAP ROLEPLAY</div>
 
-    <div class="logo">
-        TAP<span>ROLEPLAY</span>
-    </div>
+  <nav>
+    <a href="/">Start</a>
+    <a href="#sklep">Sklep</a>
+    <a href="#kontakt">Kontakt</a>
+  </nav>
 
-    <nav>
-        <a href="#home">Start</a>
-        <a href="#shop">Sklep</a>
-        <a href="#contact">Kontakt</a>
-    </nav>
-
-    <div class="account-area">
-
-        <div class="account-info" id="account-info">
-            <div class="account-username" id="discord-username">
-                —
-            </div>
-
-            <div class="account-balance" id="discord-balance">
-                Saldo: 0 PLN
-            </div>
-        </div>
-
-        <a href="/login" class="discord-btn" id="discord-button">
-            Zaloguj przez Discord
-        </a>
-
-        <a
-            href="/admin"
-            class="admin-btn"
-            id="admin-button"
-            style="display: none;"
-        >
-            PANEL ADMINA
-        </a>
-
-    </div>
-
+  <a class="login" href="/login">Discord</a>
 </header>
 
-<section class="hero" id="home">
-
-    <div class="hero-content">
-
-        <h1>
-            TAP <span>ROLEPLAY</span>
-        </h1>
-
-        <p>
-            Witaj na oficjalnym sklepie serwera TAP Roleplay.
-            Znajdź interesujące Cię produkty i ulepsz swoją rozgrywkę.
-        </p>
-
-        <a href="#shop" class="main-btn">
-            PRZEJDŹ DO SKLEPU
-        </a>
-
-    </div>
-
+<section class="hero">
+  <h1>Sklep <span>TAP Roleplay</span></h1>
+  <p>Zakup dodatki do swojej rozgrywki.</p>
 </section>
 
-<section class="section" id="shop">
+<div class="account" id="account">
+  Zalogowany jako:
+  <strong id="username"></strong>
+  |
+  Saldo:
+  <span class="balance" id="balance">0 PLN</span>
 
-    <div class="section-title">
-        <h2>SKLEP</h2>
-        <p>Wybierz interesujący Cię produkt</p>
-    </div>
+  <a href="/admin" class="admin" id="adminButton">
+    Panel administracyjny
+  </a>
+</div>
 
-    <div class="products">
+<section class="shop" id="sklep">
+  <h2>Sklep</h2>
 
-        <div class="product">
-
-            <div class="product-icon">💰</div>
-
-            <h3>Pakiet pieniędzy</h3>
-
-            <p>
-                Otrzymaj dodatkowe środki na swoje konto w grze.
-            </p>
-
-            <div class="price">
-                10 PLN
-            </div>
-
-            <button class="buy-btn">
-                KUP TERAZ
-            </button>
-
-        </div>
-
-        <div class="product">
-
-            <div class="product-icon">🚗</div>
-
-            <h3>Pakiet pojazdów</h3>
-
-            <p>
-                Odblokuj specjalny pojazd dostępny na serwerze.
-            </p>
-
-            <div class="price">
-                20 PLN
-            </div>
-
-            <button class="buy-btn">
-                KUP TERAZ
-            </button>
-
-        </div>
-
-        <div class="product">
-
-            <div class="product-icon">👑</div>
-
-            <h3>VIP</h3>
-
-            <p>
-                Otrzymaj rangę VIP i dodatkowe korzyści na serwerze.
-            </p>
-
-            <div class="price">
-                30 PLN
-            </div>
-
-            <button class="buy-btn">
-                KUP TERAZ
-            </button>
-
-        </div>
-
-    </div>
-
+  <div class="products" id="products">
+    Ładowanie produktów...
+  </div>
 </section>
 
-<footer id="contact">
-    © 2026 TAP Roleplay — Wszystkie prawa zastrzeżone.
+<footer id="kontakt">
+  TAP Roleplay © 2026
 </footer>
 
 <script>
-fetch("/me")
-    .then(response => response.json())
-    .then(data => {
+  let loggedUser = null;
 
-        const button = document.getElementById("discord-button");
-        const accountInfo = document.getElementById("account-info");
-        const username = document.getElementById("discord-username");
-        const balance = document.getElementById("discord-balance");
-        const adminButton = document.getElementById("admin-button");
+  async function loadAccount() {
+    try {
+      const response = await fetch("/me");
 
-        if (data.loggedIn) {
+      if (!response.ok) {
+        return;
+      }
 
-            button.textContent = "Zalogowano przez Discord";
-            button.removeAttribute("href");
-            button.style.cursor = "default";
+      const data = await response.json();
 
-            accountInfo.style.display = "block";
+      if (!data.loggedIn) {
+        return;
+      }
 
-            username.textContent = data.username;
-            balance.textContent = "Saldo: " + data.balance + " PLN";
+      loggedUser = data;
 
-            if (data.isAdmin === true) {
-                adminButton.style.display = "inline-block";
-            }
-        }
+      document.getElementById("account").style.display = "block";
+      document.getElementById("username").textContent =
+        data.username || data.global_name || data.discord_id;
 
-    })
-    .catch(error => {
-        console.error("Błąd pobierania danych użytkownika:", error);
-    });
+      document.getElementById("balance").textContent =
+        Number(data.balance || 0) + " PLN";
+
+      if (data.isAdmin) {
+        document.getElementById("adminButton").style.display = "inline-block";
+      }
+
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function loadProducts() {
+    const container = document.getElementById("products");
+
+    try {
+      const response = await fetch("/api/products");
+
+      if (!response.ok) {
+        throw new Error("Nie udało się pobrać produktów.");
+      }
+
+      const products = await response.json();
+
+      if (!products.length) {
+        container.innerHTML = "<p>Brak dostępnych produktów.</p>";
+        return;
+      }
+
+      container.innerHTML = products.map(product => `
+        <div class="product">
+          <h3>${escapeHtml(product.name)}</h3>
+
+          <p>
+            ${escapeHtml(product.description || "")}
+          </p>
+
+          <div class="price">
+            ${Number(product.price)} PLN
+          </div>
+
+          ${
+            product.type === "unban"
+            ? `
+              <div class="uid-box" id="uid-box-${product.id}">
+                <input
+                  id="uid-${product.id}"
+                  type="number"
+                  placeholder="Wpisz UID gracza"
+                  min="1"
+                >
+
+                <button onclick="buyUnban(${product.id})">
+                  Potwierdź zakup
+                </button>
+
+                <div class="message" id="message-${product.id}"></div>
+              </div>
+
+              <button
+                id="buy-button-${product.id}"
+                onclick="showUidBox(${product.id})"
+              >
+                Kup unbana
+              </button>
+            `
+            : `
+              <button onclick="buyProduct(${product.id})">
+                Kup
+              </button>
+            `
+          }
+        </div>
+      `).join("");
+
+    } catch (error) {
+      container.innerHTML =
+        "<p>Nie udało się załadować produktów.</p>";
+
+      console.error(error);
+    }
+  }
+
+  function showUidBox(productId) {
+    if (!loggedUser) {
+      alert("Najpierw zaloguj się przez Discord.");
+      window.location.href = "/login";
+      return;
+    }
+
+    document.getElementById(
+      "uid-box-" + productId
+    ).style.display = "block";
+
+    document.getElementById(
+      "buy-button-" + productId
+    ).style.display = "none";
+  }
+
+  async function buyUnban(productId) {
+    if (!loggedUser) {
+      alert("Najpierw zaloguj się przez Discord.");
+      return;
+    }
+
+    const input = document.getElementById("uid-" + productId);
+    const message = document.getElementById("message-" + productId);
+    const button = input.parentElement.querySelector("button");
+
+    const uid = Number(input.value);
+
+    if (!Number.isInteger(uid) || uid <= 0) {
+      message.textContent = "Wpisz poprawny UID.";
+      return;
+    }
+
+    button.disabled = true;
+    message.textContent = "Przetwarzanie zakupu...";
+
+    try {
+      const response = await fetch("/api/purchase", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          product_id: productId,
+          uid: uid
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        message.textContent =
+          data.error || "Nie udało się wykonać zakupu.";
+
+        button.disabled = false;
+        return;
+      }
+
+      message.textContent =
+        "Zakup zakończony. Bot Discord wysłał komendę unbana.";
+
+      document.getElementById("balance").textContent =
+        Number(data.balance) + " PLN";
+
+    } catch (error) {
+      console.error(error);
+
+      message.textContent =
+        "Wystąpił błąd podczas zakupu.";
+
+      button.disabled = false;
+    }
+  }
+
+  async function buyProduct(productId) {
+    if (!loggedUser) {
+      alert("Najpierw zaloguj się przez Discord.");
+      window.location.href = "/login";
+      return;
+    }
+
+    alert("Ten produkt nie jest jeszcze skonfigurowany do zakupu.");
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  loadAccount();
+  loadProducts();
 </script>
 
 </body>
