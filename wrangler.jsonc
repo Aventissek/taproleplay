@@ -3,9 +3,12 @@
   "name": "taproleplay",
   "main": "worker.js",
   "compatibility_date": "2026-09-28",
+
   "vars": {
-    "DISCORD_CLIENT_ID": "1553914276094156841"
+    "DISCORD_CLIENT_ID": "1553914276094156841",
+    "ADMIN_DISCORD_ID": "1033661957313658951"
   },
+
   "assets": {
     "directory": "."
   }
