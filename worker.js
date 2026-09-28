@@ -6,33 +6,39 @@ export default {
     const url = new URL(request.url);
 
     try {
-      // =========================
-      // STATIC FILES
-      // =========================
+      // ==========================================
+      // HEALTH CHECK
+      // ==========================================
 
-      // Strona główna i wszystkie statyczne pliki
       if (
-        request.method === "GET" &&
-        !url.pathname.startsWith("/api/") &&
-        ![
-          "/login",
-          "/callback",
-          "/logout",
-          "/me",
-          "/admin"
-        ].includes(url.pathname)
+        url.pathname === "/api/health" &&
+        request.method === "GET"
       ) {
-        return env.ASSETS.fetch(request);
+        return await healthCheck(env);
       }
 
-      // =========================
+      // ==========================================
       // LOGIN
-      // =========================
+      // ==========================================
 
-      if (url.pathname === "/login") {
-        const discordUrl = new URL(
-          "https://discord.com/oauth2/authorize"
-        );
+      if (
+        url.pathname === "/login" &&
+        request.method === "GET"
+      ) {
+        if (!env.DISCORD_CLIENT_ID) {
+          return textResponse(
+            "Brak DISCORD_CLIENT_ID w konfiguracji Cloudflare.",
+            500
+          );
+        }
+
+        const redirectUri =
+          `${url.origin}/callback`;
+
+        const discordUrl =
+          new URL(
+            "https://discord.com/oauth2/authorize"
+          );
 
         discordUrl.searchParams.set(
           "client_id",
@@ -46,7 +52,7 @@ export default {
 
         discordUrl.searchParams.set(
           "redirect_uri",
-          `${url.origin}/callback`
+          redirectUri
         );
 
         discordUrl.searchParams.set(
@@ -60,178 +66,43 @@ export default {
         );
       }
 
-      // =========================
-      // CALLBACK
-      // =========================
+      // ==========================================
+      // DISCORD CALLBACK
+      // ==========================================
 
-      if (url.pathname === "/callback") {
-        const code = url.searchParams.get("code");
-
-        if (!code) {
-          return new Response(
-            "Brak kodu OAuth.",
-            { status: 400 }
-          );
-        }
-
-        const tokenResponse = await fetch(
-          "https://discord.com/api/oauth2/token",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/x-www-form-urlencoded"
-            },
-            body: new URLSearchParams({
-              client_id: env.DISCORD_CLIENT_ID,
-              client_secret:
-                env.DISCORD_CLIENT_SECRET,
-              grant_type: "authorization_code",
-              code,
-              redirect_uri:
-                `${url.origin}/callback`
-            })
-          }
+      if (
+        url.pathname === "/callback" &&
+        request.method === "GET"
+      ) {
+        return await handleDiscordCallback(
+          request,
+          env,
+          url
         );
-
-        if (!tokenResponse.ok) {
-          const errorText =
-            await tokenResponse.text();
-
-          console.error(
-            "Discord OAuth token error:",
-            errorText
-          );
-
-          return new Response(
-            "Nie udało się zalogować przez Discord.",
-            { status: 500 }
-          );
-        }
-
-        const token =
-          await tokenResponse.json();
-
-        const userResponse = await fetch(
-          "https://discord.com/api/users/@me",
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token.access_token}`
-            }
-          }
-        );
-
-        if (!userResponse.ok) {
-          return new Response(
-            "Nie udało się pobrać danych Discord.",
-            { status: 500 }
-          );
-        }
-
-        const discordUser =
-          await userResponse.json();
-
-        // D1 jest potrzebne dopiero tutaj
-        await ensureSchema(env);
-
-        await env.DB.prepare(`
-          INSERT INTO users (
-            discord_id,
-            username,
-            balance
-          )
-          VALUES (?, ?, 0)
-          ON CONFLICT(discord_id)
-          DO UPDATE SET
-            username = excluded.username,
-            updated_at = CURRENT_TIMESTAMP
-        `)
-          .bind(
-            discordUser.id,
-            getDiscordUsername(discordUser)
-          )
-          .run();
-
-        const sessionId =
-          crypto.randomUUID();
-
-        await env.DB.prepare(`
-          CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            discord_id TEXT NOT NULL,
-            expires_at INTEGER NOT NULL
-          )
-        `).run();
-
-        await env.DB.prepare(`
-          INSERT INTO sessions (
-            id,
-            discord_id,
-            expires_at
-          )
-          VALUES (?, ?, ?)
-        `)
-          .bind(
-            sessionId,
-            discordUser.id,
-            Date.now() + SESSION_MAX_AGE * 1000
-          )
-          .run();
-
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: "/",
-            "Set-Cookie":
-              `${COOKIE_NAME}=${sessionId}; ` +
-              `Path=/; HttpOnly; Secure; SameSite=Lax; ` +
-              `Max-Age=${SESSION_MAX_AGE}`
-          }
-        });
       }
 
-      // =========================
+      // ==========================================
       // LOGOUT
-      // =========================
+      // ==========================================
 
-      if (url.pathname === "/logout") {
-        const sessionId =
-          getCookie(request, COOKIE_NAME);
-
-        if (sessionId) {
-          try {
-            await env.DB.prepare(`
-              DELETE FROM sessions
-              WHERE id = ?
-            `)
-              .bind(sessionId)
-              .run();
-          } catch (e) {
-            console.error(
-              "Logout DB error:",
-              e
-            );
-          }
-        }
-
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: "/",
-            "Set-Cookie":
-              `${COOKIE_NAME}=; ` +
-              `Path=/; HttpOnly; Secure; SameSite=Lax; ` +
-              `Max-Age=0`
-          }
-        });
+      if (
+        url.pathname === "/logout" &&
+        request.method === "GET"
+      ) {
+        return await logout(
+          request,
+          env
+        );
       }
 
-      // =========================
+      // ==========================================
       // CURRENT USER
-      // =========================
+      // ==========================================
 
-      if (url.pathname === "/me") {
+      if (
+        url.pathname === "/me" &&
+        request.method === "GET"
+      ) {
         await ensureSchema(env);
 
         const user =
@@ -250,16 +121,16 @@ export default {
           loggedIn: true,
           id: user.discord_id,
           username: user.username,
-          balance: user.balance,
+          balance: Number(user.balance),
           isAdmin:
             user.discord_id ===
-            env.ADMIN_DISCORD_ID
+            String(env.ADMIN_DISCORD_ID || "")
         });
       }
 
-      // =========================
+      // ==========================================
       // PRODUCTS
-      // =========================
+      // ==========================================
 
       if (
         url.pathname === "/api/products" &&
@@ -288,346 +159,53 @@ export default {
           `).all();
 
         return json({
-          products:
-            result.results || []
+          products: result.results || []
         });
       }
 
-      // =========================
+      // ==========================================
       // PURCHASE
-      // =========================
+      // ==========================================
 
       if (
         url.pathname === "/api/purchase" &&
         request.method === "POST"
       ) {
-        await ensureSchema(env);
-
-        const user =
-          await getCurrentUser(
-            request,
-            env
-          );
-
-        if (!user) {
-          return json(
-            {
-              error:
-                "Musisz być zalogowany."
-            },
-            401
-          );
-        }
-
-        let body;
-
-        try {
-          body =
-            await request.json();
-        } catch {
-          return json(
-            {
-              error:
-                "Nieprawidłowe dane."
-            },
-            400
-          );
-        }
-
-        const productId =
-          Number(body.product_id);
-
-        const uid =
-          body.uid !== undefined &&
-          body.uid !== null &&
-          String(body.uid).trim() !== ""
-            ? Number(body.uid)
-            : null;
-
-        if (
-          !Number.isInteger(productId) ||
-          productId <= 0
-        ) {
-          return json(
-            {
-              error:
-                "Nieprawidłowy produkt."
-            },
-            400
-          );
-        }
-
-        const product =
-          await env.DB.prepare(`
-            SELECT *
-            FROM products
-            WHERE id = ?
-              AND active = 1
-            LIMIT 1
-          `)
-            .bind(productId)
-            .first();
-
-        if (!product) {
-          return json(
-            {
-              error:
-                "Produkt nie istnieje."
-            },
-            404
-          );
-        }
-
-        if (
-          product.type === "unban"
-        ) {
-          if (
-            !Number.isInteger(uid) ||
-            uid <= 0
-          ) {
-            return json(
-              {
-                error:
-                  "Podaj prawidłowy UID gracza."
-              },
-              400
-            );
-          }
-        }
-
-        if (
-          Number(user.balance) <
-          Number(product.price)
-        ) {
-          return json(
-            {
-              error:
-                "Nie masz wystarczającej liczby PLN."
-            },
-            400
-          );
-        }
-
-        const requestId =
-          crypto.randomUUID();
-
-        // ---------------------------------
-        // UNBAN
-        // ---------------------------------
-
-        if (
-          product.type === "unban"
-        ) {
-          try {
-            await sendUnbanCommandToDiscord(
-              env,
-              uid
-            );
-          } catch (error) {
-            console.error(
-              "Discord unban error:",
-              error
-            );
-
-            await env.DB.prepare(`
-              INSERT INTO purchases (
-                discord_id,
-                product_id,
-                product_name,
-                amount,
-                uid,
-                status,
-                request_id,
-                error_message
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `)
-              .bind(
-                user.discord_id,
-                product.id,
-                product.name,
-                product.price,
-                uid,
-                "failed",
-                requestId,
-                String(
-                  error?.message ||
-                  "Discord error"
-                ).slice(0, 1000)
-              )
-              .run();
-
-            return json(
-              {
-                error:
-                  "Nie udało się wysłać komendy unbana. PLN nie zostały pobrane."
-              },
-              502
-            );
-          }
-        }
-
-        // ---------------------------------
-        // DEDUKCJA SALDA
-        // ---------------------------------
-
-        const freshUser =
-          await env.DB.prepare(`
-            SELECT *
-            FROM users
-            WHERE discord_id = ?
-            LIMIT 1
-          `)
-            .bind(user.discord_id)
-            .first();
-
-        if (!freshUser) {
-          return json(
-            {
-              error:
-                "Nie znaleziono konta."
-            },
-            404
-          );
-        }
-
-        const balanceBefore =
-          Number(freshUser.balance);
-
-        const price =
-          Number(product.price);
-
-        if (
-          balanceBefore < price
-        ) {
-          return json(
-            {
-              error:
-                "Nie masz wystarczającej liczby PLN."
-            },
-            400
-          );
-        }
-
-        const balanceAfter =
-          balanceBefore - price;
-
-        await env.DB.prepare(`
-          UPDATE users
-          SET
-            balance = ?,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE discord_id = ?
-        `)
-          .bind(
-            balanceAfter,
-            user.discord_id
-          )
-          .run();
-
-        await env.DB.prepare(`
-          INSERT INTO transactions (
-            discord_id,
-            type,
-            amount,
-            balance_before,
-            balance_after
-          )
-          VALUES (?, ?, ?, ?, ?)
-        `)
-          .bind(
-            user.discord_id,
-            "purchase",
-            -price,
-            balanceBefore,
-            balanceAfter
-          )
-          .run();
-
-        await env.DB.prepare(`
-          INSERT INTO purchases (
-            discord_id,
-            product_id,
-            product_name,
-            amount,
-            uid,
-            status,
-            request_id
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `)
-          .bind(
-            user.discord_id,
-            product.id,
-            product.name,
-            price,
-            uid,
-            "completed",
-            requestId
-          )
-          .run();
-
-        return json({
-          success: true,
-          message:
-            product.type === "unban"
-              ? "Unban został wysłany."
-              : "Zakup został wykonany.",
-          balance:
-            balanceAfter
-        });
+        return await purchaseProduct(
+          request,
+          env
+        );
       }
 
-      // =========================
-      // ADMIN CHECK
-      // =========================
+      // ==========================================
+      // ADMIN API
+      // ==========================================
 
       if (
-        url.pathname.startsWith(
-          "/api/admin/"
-        )
+        url.pathname.startsWith("/api/admin/")
       ) {
         await ensureSchema(env);
 
-        const user =
-          await getCurrentUser(
+        const admin =
+          await requireAdmin(
             request,
             env
           );
 
-        if (!user) {
-          return json(
-            {
-              error:
-                "Musisz być zalogowany."
-            },
-            401
-          );
+        if (!admin.ok) {
+          return admin.response;
         }
 
-        if (
-          user.discord_id !==
-          env.ADMIN_DISCORD_ID
-        ) {
-          return json(
-            {
-              error:
-                "Brak uprawnień."
-            },
-            403
-          );
-        }
-
-        return handleAdmin(
+        return await handleAdmin(
           request,
           env,
           url
         );
       }
 
-      // =========================
+      // ==========================================
       // ADMIN PAGE
-      // =========================
+      // ==========================================
 
       if (
         url.pathname === "/admin" &&
@@ -636,32 +214,36 @@ export default {
         return new Response(
           ADMIN_HTML,
           {
+            status: 200,
             headers: {
               "Content-Type":
-                "text/html; charset=UTF-8"
+                "text/html; charset=UTF-8",
+              "Cache-Control":
+                "no-store"
             }
           }
         );
       }
 
-      // =========================
-      // FALLBACK
-      // =========================
+      // ==========================================
+      // STATIC ASSETS
+      // ==========================================
 
-      return env.ASSETS.fetch(
-        request
-      );
+      return env.ASSETS.fetch(request);
 
     } catch (error) {
       console.error(
-        "Worker error:",
+        "WORKER ERROR:",
         error
       );
 
       return json(
         {
           error:
-            "Wewnętrzny błąd serwera."
+            "Wewnętrzny błąd serwera.",
+          details:
+            error?.message ||
+            String(error)
         },
         500
       );
@@ -670,11 +252,322 @@ export default {
 };
 
 
-// =====================================================
+// ==================================================
+// DISCORD OAUTH
+// ==================================================
+
+async function handleDiscordCallback(
+  request,
+  env,
+  url
+) {
+  const oauthError =
+    url.searchParams.get("error");
+
+  if (oauthError) {
+    const description =
+      url.searchParams.get(
+        "error_description"
+      );
+
+    return errorPage(
+      "Logowanie przez Discord zostało anulowane.",
+      description ||
+        oauthError
+    );
+  }
+
+  const code =
+    url.searchParams.get("code");
+
+  if (!code) {
+    return errorPage(
+      "Brak kodu Discord OAuth.",
+      "Discord nie zwrócił parametru code."
+    );
+  }
+
+  if (!env.DISCORD_CLIENT_ID) {
+    return errorPage(
+      "Brak konfiguracji Discord.",
+      "DISCORD_CLIENT_ID nie jest ustawiony."
+    );
+  }
+
+  if (!env.DISCORD_CLIENT_SECRET) {
+    return errorPage(
+      "Brak konfiguracji Discord.",
+      "DISCORD_CLIENT_SECRET nie jest ustawiony jako Secret."
+    );
+  }
+
+  const redirectUri =
+    `${url.origin}/callback`;
+
+  console.log(
+    "Discord OAuth redirect URI:",
+    redirectUri
+  );
+
+  // ==========================================
+  // CODE -> ACCESS TOKEN
+  // ==========================================
+
+  const tokenResponse =
+    await fetch(
+      "https://discord.com/api/oauth2/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/x-www-form-urlencoded"
+        },
+        body:
+          new URLSearchParams({
+            client_id:
+              env.DISCORD_CLIENT_ID,
+
+            client_secret:
+              env.DISCORD_CLIENT_SECRET,
+
+            grant_type:
+              "authorization_code",
+
+            code,
+
+            redirect_uri:
+              redirectUri
+          }).toString()
+      }
+    );
+
+  const tokenText =
+    await tokenResponse.text();
+
+  if (!tokenResponse.ok) {
+    console.error(
+      "DISCORD TOKEN ERROR:",
+      tokenResponse.status,
+      tokenText
+    );
+
+    let details =
+      tokenText;
+
+    try {
+      const parsed =
+        JSON.parse(tokenText);
+
+      details =
+        parsed.error_description ||
+        parsed.error ||
+        tokenText;
+    } catch {}
+
+    return errorPage(
+      "Discord odrzucił logowanie.",
+      `HTTP ${tokenResponse.status}: ${details}`
+    );
+  }
+
+  let token;
+
+  try {
+    token =
+      JSON.parse(tokenText);
+  } catch {
+    return errorPage(
+      "Nieprawidłowa odpowiedź Discorda.",
+      "Discord nie zwrócił poprawnego JSON."
+    );
+  }
+
+  if (!token.access_token) {
+    return errorPage(
+      "Discord nie zwrócił tokenu.",
+      tokenText
+    );
+  }
+
+  // ==========================================
+  // ACCESS TOKEN -> USER
+  // ==========================================
+
+  const userResponse =
+    await fetch(
+      "https://discord.com/api/users/@me",
+      {
+        method: "GET",
+        headers: {
+          "Authorization":
+            `Bearer ${token.access_token}`
+        }
+      }
+    );
+
+  const userText =
+    await userResponse.text();
+
+  if (!userResponse.ok) {
+    console.error(
+      "DISCORD USER ERROR:",
+      userResponse.status,
+      userText
+    );
+
+    return errorPage(
+      "Nie udało się pobrać konta Discord.",
+      `HTTP ${userResponse.status}: ${userText}`
+    );
+  }
+
+  let discordUser;
+
+  try {
+    discordUser =
+      JSON.parse(userText);
+  } catch {
+    return errorPage(
+      "Nieprawidłowa odpowiedź Discorda.",
+      "Nie udało się odczytać danych użytkownika."
+    );
+  }
+
+  if (!discordUser.id) {
+    return errorPage(
+      "Discord nie zwrócił ID użytkownika.",
+      userText
+    );
+  }
+
+  // ==========================================
+  // DATABASE
+  // ==========================================
+
+  await ensureSchema(env);
+
+  const username =
+    getDiscordUsername(
+      discordUser
+    );
+
+  await env.DB.prepare(`
+    INSERT INTO users (
+      discord_id,
+      username,
+      balance
+    )
+    VALUES (?, ?, 0)
+    ON CONFLICT(discord_id)
+    DO UPDATE SET
+      username = excluded.username,
+      updated_at = CURRENT_TIMESTAMP
+  `)
+    .bind(
+      String(discordUser.id),
+      username
+    )
+    .run();
+
+  // ==========================================
+  // SESSION
+  // ==========================================
+
+  const sessionId =
+    crypto.randomUUID();
+
+  const expiresAt =
+    Date.now() +
+    SESSION_MAX_AGE * 1000;
+
+  await env.DB.prepare(`
+    INSERT INTO sessions (
+      id,
+      discord_id,
+      expires_at
+    )
+    VALUES (?, ?, ?)
+  `)
+    .bind(
+      sessionId,
+      String(discordUser.id),
+      expiresAt
+    )
+    .run();
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Location": "/",
+      "Set-Cookie":
+        `${COOKIE_NAME}=${encodeURIComponent(sessionId)}; ` +
+        `Path=/; ` +
+        `HttpOnly; ` +
+        `Secure; ` +
+        `SameSite=Lax; ` +
+        `Max-Age=${SESSION_MAX_AGE}`
+    }
+  });
+}
+
+
+// ==================================================
+// LOGOUT
+// ==================================================
+
+async function logout(
+  request,
+  env
+) {
+  const sessionId =
+    getCookie(
+      request,
+      COOKIE_NAME
+    );
+
+  if (sessionId) {
+    try {
+      await env.DB.prepare(`
+        DELETE FROM sessions
+        WHERE id = ?
+      `)
+        .bind(sessionId)
+        .run();
+    } catch (error) {
+      console.error(
+        "LOGOUT ERROR:",
+        error
+      );
+    }
+  }
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Location": "/",
+      "Set-Cookie":
+        `${COOKIE_NAME}=; ` +
+        `Path=/; ` +
+        `HttpOnly; ` +
+        `Secure; ` +
+        `SameSite=Lax; ` +
+        `Max-Age=0`
+    }
+  });
+}
+
+
+// ==================================================
 // DATABASE
-// =====================================================
+// ==================================================
 
 async function ensureSchema(env) {
+  if (!env.DB) {
+    throw new Error(
+      "Brak bindingu DB."
+    );
+  }
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS users (
       discord_id TEXT PRIMARY KEY,
@@ -699,7 +592,8 @@ async function ensureSchema(env) {
   `).run();
 
   await env.DB.prepare(`
-    CREATE INDEX IF NOT EXISTS idx_transactions_discord_id
+    CREATE INDEX IF NOT EXISTS
+    idx_transactions_discord_id
     ON transactions(discord_id)
   `).run();
 
@@ -742,34 +636,46 @@ async function ensureSchema(env) {
     )
   `).run();
 
-  // Sprawdzenie kolumn purchases
-  const columns =
+  // ==========================================
+  // MIGRACJA PURCHASES
+  // ==========================================
+
+  const purchaseColumns =
     await env.DB
       .prepare(
-        `PRAGMA table_info(purchases)`
+        "PRAGMA table_info(purchases)"
       )
       .all();
 
-  const names =
-    (columns.results || [])
-      .map(column => column.name);
+  const purchaseNames =
+    (purchaseColumns.results || [])
+      .map(
+        column =>
+          String(column.name)
+      );
 
-  if (!names.includes("request_id")) {
+  if (
+    !purchaseNames.includes(
+      "request_id"
+    )
+  ) {
     await env.DB.prepare(`
       ALTER TABLE purchases
       ADD COLUMN request_id TEXT
     `).run();
   }
 
-  if (!names.includes("error_message")) {
+  if (
+    !purchaseNames.includes(
+      "error_message"
+    )
+  ) {
     await env.DB.prepare(`
       ALTER TABLE purchases
       ADD COLUMN error_message TEXT
     `).run();
   }
 
-  // Indeks robimy dopiero po upewnieniu się,
-  // że kolumna istnieje.
   try {
     await env.DB.prepare(`
       CREATE UNIQUE INDEX IF NOT EXISTS
@@ -778,13 +684,16 @@ async function ensureSchema(env) {
     `).run();
   } catch (error) {
     console.error(
-      "Purchase index error:",
+      "REQUEST ID INDEX:",
       error
     );
   }
 
-  // Domyślny produkt
-  const count =
+  // ==========================================
+  // DEFAULT UNBAN
+  // ==========================================
+
+  const productCount =
     await env.DB
       .prepare(`
         SELECT COUNT(*) AS count
@@ -793,8 +702,8 @@ async function ensureSchema(env) {
       .first();
 
   if (
-    !count ||
-    Number(count.count) === 0
+    !productCount ||
+    Number(productCount.count) === 0
   ) {
     await env.DB.prepare(`
       INSERT INTO products (
@@ -818,74 +727,23 @@ async function ensureSchema(env) {
       )
       .run();
   }
+
+  // ==========================================
+  // CLEAN OLD SESSIONS
+  // ==========================================
+
+  await env.DB.prepare(`
+    DELETE FROM sessions
+    WHERE expires_at < ?
+  `)
+    .bind(Date.now())
+    .run();
 }
 
 
-// =====================================================
-// DISCORD
-// =====================================================
-
-function getDiscordUsername(user) {
-  if (user.global_name) {
-    return user.global_name;
-  }
-
-  if (user.username) {
-    return user.username;
-  }
-
-  return "Discord User";
-}
-
-
-async function sendUnbanCommandToDiscord(
-  env,
-  uid
-) {
-  if (!env.DISCORD_BOT_TOKEN) {
-    throw new Error(
-      "Brak DISCORD_BOT_TOKEN"
-    );
-  }
-
-  if (!env.DISCORD_SHOP_CHANNEL_ID) {
-    throw new Error(
-      "Brak DISCORD_SHOP_CHANNEL_ID"
-    );
-  }
-
-  const response =
-    await fetch(
-      `https://discord.com/api/v10/channels/${env.DISCORD_SHOP_CHANNEL_ID}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization":
-            `Bot ${env.DISCORD_BOT_TOKEN}`,
-          "Content-Type":
-            "application/json"
-        },
-        body: JSON.stringify({
-          content:
-            `.unban ${uid}`
-        })
-      }
-    );
-
-  if (!response.ok) {
-    const text =
-      await response.text();
-
-    throw new Error(
-      `Discord HTTP ${response.status}: ${text}`
-    );
-  }
-}
-
-
-// =====================================================
-// SESSION
-// =====================================================
+// ==================================================
+// CURRENT USER
+// ==================================================
 
 async function getCurrentUser(
   request,
@@ -909,7 +767,7 @@ async function getCurrentUser(
         u.username,
         u.balance
       FROM sessions s
-      JOIN users u
+      INNER JOIN users u
         ON u.discord_id = s.discord_id
       WHERE s.id = ?
       LIMIT 1
@@ -939,55 +797,410 @@ async function getCurrentUser(
 }
 
 
-function getCookie(
+// ==================================================
+// PURCHASE
+// ==================================================
+
+async function purchaseProduct(
   request,
-  name
+  env
 ) {
-  const cookie =
-    request.headers.get("Cookie");
+  await ensureSchema(env);
 
-  if (!cookie) {
-    return null;
+  const user =
+    await getCurrentUser(
+      request,
+      env
+    );
+
+  if (!user) {
+    return json(
+      {
+        error:
+          "Musisz być zalogowany."
+      },
+      401
+    );
   }
 
-  const parts =
-    cookie.split(";");
+  let body;
 
-  for (const part of parts) {
-    const index =
-      part.indexOf("=");
+  try {
+    body =
+      await request.json();
+  } catch {
+    return json(
+      {
+        error:
+          "Nieprawidłowe dane."
+      },
+      400
+    );
+  }
 
-    if (index === -1) {
-      continue;
-    }
+  const productId =
+    Number(body.product_id);
 
-    const key =
-      part.slice(0, index).trim();
+  if (
+    !Number.isInteger(productId) ||
+    productId <= 0
+  ) {
+    return json(
+      {
+        error:
+          "Nieprawidłowy produkt."
+      },
+      400
+    );
+  }
 
-    const value =
-      part.slice(index + 1).trim();
+  const product =
+    await env.DB.prepare(`
+      SELECT *
+      FROM products
+      WHERE id = ?
+        AND active = 1
+      LIMIT 1
+    `)
+      .bind(productId)
+      .first();
 
-    if (key === name) {
-      return decodeURIComponent(value);
+  if (!product) {
+    return json(
+      {
+        error:
+          "Produkt nie istnieje."
+      },
+      404
+    );
+  }
+
+  let uid = null;
+
+  if (
+    product.type === "unban"
+  ) {
+    uid =
+      Number(body.uid);
+
+    if (
+      !Number.isInteger(uid) ||
+      uid <= 0
+    ) {
+      return json(
+        {
+          error:
+            "Podaj prawidłowy UID."
+        },
+        400
+      );
     }
   }
 
-  return null;
+  const price =
+    Number(product.price);
+
+  if (!Number.isInteger(price)) {
+    return json(
+      {
+        error:
+          "Nieprawidłowa cena produktu."
+      },
+      500
+    );
+  }
+
+  // Pobierz aktualne saldo
+  const freshUser =
+    await env.DB.prepare(`
+      SELECT *
+      FROM users
+      WHERE discord_id = ?
+      LIMIT 1
+    `)
+      .bind(user.discord_id)
+      .first();
+
+  if (!freshUser) {
+    return json(
+      {
+        error:
+          "Nie znaleziono konta."
+      },
+      404
+    );
+  }
+
+  const balanceBefore =
+    Number(freshUser.balance);
+
+  if (
+    balanceBefore < price
+  ) {
+    return json(
+      {
+        error:
+          "Nie masz wystarczającej liczby PLN."
+      },
+      400
+    );
+  }
+
+  const requestId =
+    crypto.randomUUID();
+
+  // ==========================================
+  // UNBAN -> DISCORD
+  // ==========================================
+
+  if (
+    product.type === "unban"
+  ) {
+    try {
+      await sendUnbanCommandToDiscord(
+        env,
+        uid
+      );
+    } catch (error) {
+      console.error(
+        "UNBAN DISCORD ERROR:",
+        error
+      );
+
+      await env.DB.prepare(`
+        INSERT INTO purchases (
+          discord_id,
+          product_id,
+          product_name,
+          amount,
+          uid,
+          status,
+          request_id,
+          error_message
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+        .bind(
+          user.discord_id,
+          product.id,
+          product.name,
+          price,
+          uid,
+          "failed",
+          requestId,
+          String(
+            error?.message ||
+            error
+          ).slice(0, 1000)
+        )
+        .run();
+
+      return json(
+        {
+          error:
+            "Nie udało się wysłać komendy unbana. Saldo nie zostało pobrane.",
+          details:
+            String(
+              error?.message ||
+              error
+            )
+        },
+        502
+      );
+    }
+  }
+
+  // ==========================================
+  // DEDUCT BALANCE
+  // ==========================================
+
+  const balanceAfter =
+    balanceBefore - price;
+
+  await env.DB.prepare(`
+    UPDATE users
+    SET
+      balance = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE discord_id = ?
+  `)
+    .bind(
+      balanceAfter,
+      user.discord_id
+    )
+    .run();
+
+  await env.DB.prepare(`
+    INSERT INTO transactions (
+      discord_id,
+      type,
+      amount,
+      balance_before,
+      balance_after
+    )
+    VALUES (?, ?, ?, ?, ?)
+  `)
+    .bind(
+      user.discord_id,
+      "purchase",
+      -price,
+      balanceBefore,
+      balanceAfter
+    )
+    .run();
+
+  await env.DB.prepare(`
+    INSERT INTO purchases (
+      discord_id,
+      product_id,
+      product_name,
+      amount,
+      uid,
+      status,
+      request_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `)
+    .bind(
+      user.discord_id,
+      product.id,
+      product.name,
+      price,
+      uid,
+      "completed",
+      requestId
+    )
+    .run();
+
+  return json({
+    success: true,
+    message:
+      product.type === "unban"
+        ? "Unban został wysłany."
+        : "Zakup został wykonany.",
+    balance:
+      balanceAfter
+  });
 }
 
 
-// =====================================================
+// ==================================================
+// DISCORD BOT
+// ==================================================
+
+async function sendUnbanCommandToDiscord(
+  env,
+  uid
+) {
+  if (
+    !env.DISCORD_BOT_TOKEN
+  ) {
+    throw new Error(
+      "Brak DISCORD_BOT_TOKEN."
+    );
+  }
+
+  if (
+    !env.DISCORD_SHOP_CHANNEL_ID
+  ) {
+    throw new Error(
+      "Brak DISCORD_SHOP_CHANNEL_ID."
+    );
+  }
+
+  const channelId =
+    String(
+      env.DISCORD_SHOP_CHANNEL_ID
+    );
+
+  const response =
+    await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization":
+            `Bot ${env.DISCORD_BOT_TOKEN}`,
+          "Content-Type":
+            "application/json"
+        },
+        body:
+          JSON.stringify({
+            content:
+              `.unban ${uid}`
+          })
+      }
+    );
+
+  const responseText =
+    await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `Discord ${response.status}: ${responseText}`
+    );
+  }
+}
+
+
+// ==================================================
 // ADMIN
-// =====================================================
+// ==================================================
+
+async function requireAdmin(
+  request,
+  env
+) {
+  const user =
+    await getCurrentUser(
+      request,
+      env
+    );
+
+  if (!user) {
+    return {
+      ok: false,
+      response: json(
+        {
+          error:
+            "Musisz być zalogowany."
+        },
+        401
+      )
+    };
+  }
+
+  if (
+    String(user.discord_id) !==
+    String(env.ADMIN_DISCORD_ID || "")
+  ) {
+    return {
+      ok: false,
+      response: json(
+        {
+          error:
+            "Brak uprawnień administratora."
+        },
+        403
+      )
+    };
+  }
+
+  return {
+    ok: true,
+    user
+  };
+}
+
 
 async function handleAdmin(
   request,
   env,
   url
 ) {
-  // ---------------------------------
-  // GET USERS
-  // ---------------------------------
+  // ==========================================
+  // USERS
+  // ==========================================
 
   if (
     url.pathname ===
@@ -1016,7 +1229,7 @@ async function handleAdmin(
       });
     }
 
-    const users =
+    const result =
       await env.DB.prepare(`
         SELECT *
         FROM users
@@ -1026,21 +1239,33 @@ async function handleAdmin(
 
     return json({
       users:
-        users.results || []
+        result.results || []
     });
   }
 
-  // ---------------------------------
-  // ADD BALANCE
-  // ---------------------------------
+  // ==========================================
+  // BALANCE
+  // ==========================================
 
   if (
     url.pathname ===
     "/api/admin/balance" &&
     request.method === "POST"
   ) {
-    const body =
-      await request.json();
+    let body;
+
+    try {
+      body =
+        await request.json();
+    } catch {
+      return json(
+        {
+          error:
+            "Nieprawidłowe JSON."
+        },
+        400
+      );
+    }
 
     const discordId =
       String(
@@ -1142,9 +1367,9 @@ async function handleAdmin(
     });
   }
 
-  // ---------------------------------
+  // ==========================================
   // TRANSACTIONS
-  // ---------------------------------
+  // ==========================================
 
   if (
     url.pathname ===
@@ -1185,9 +1410,9 @@ async function handleAdmin(
     });
   }
 
-  // ---------------------------------
+  // ==========================================
   // PRODUCTS
-  // ---------------------------------
+  // ==========================================
 
   if (
     url.pathname ===
@@ -1209,17 +1434,29 @@ async function handleAdmin(
     });
   }
 
-  // ---------------------------------
+  // ==========================================
   // TOGGLE PRODUCT
-  // ---------------------------------
+  // ==========================================
 
   if (
     url.pathname ===
     "/api/admin/products/toggle" &&
     request.method === "POST"
   ) {
-    const body =
-      await request.json();
+    let body;
+
+    try {
+      body =
+        await request.json();
+    } catch {
+      return json(
+        {
+          error:
+            "Nieprawidłowe JSON."
+        },
+        400
+      );
+    }
 
     const productId =
       Number(body.product_id);
@@ -1256,7 +1493,7 @@ async function handleAdmin(
       );
     }
 
-    const newStatus =
+    const active =
       Number(product.active) === 1
         ? 0
         : 1;
@@ -1269,14 +1506,14 @@ async function handleAdmin(
       WHERE id = ?
     `)
       .bind(
-        newStatus,
+        active,
         productId
       )
       .run();
 
     return json({
       success: true,
-      active: newStatus
+      active
     });
   }
 
@@ -1290,9 +1527,135 @@ async function handleAdmin(
 }
 
 
-// =====================================================
-// JSON
-// =====================================================
+// ==================================================
+// HEALTH
+// ==================================================
+
+async function healthCheck(env) {
+  const result = {
+    worker: true,
+    database: false,
+    discord_client_id: Boolean(
+      env.DISCORD_CLIENT_ID
+    ),
+    discord_client_secret: Boolean(
+      env.DISCORD_CLIENT_SECRET
+    ),
+    session_secret: Boolean(
+      env.SESSION_SECRET
+    ),
+    discord_bot_token: Boolean(
+      env.DISCORD_BOT_TOKEN
+    ),
+    discord_shop_channel: Boolean(
+      env.DISCORD_SHOP_CHANNEL_ID
+    ),
+    admin_id: Boolean(
+      env.ADMIN_DISCORD_ID
+    ),
+    assets: Boolean(
+      env.ASSETS
+    )
+  };
+
+  try {
+    if (!env.DB) {
+      throw new Error(
+        "Brak DB binding."
+      );
+    }
+
+    await env.DB
+      .prepare("SELECT 1")
+      .first();
+
+    result.database = true;
+  } catch (error) {
+    result.database_error =
+      error?.message ||
+      String(error);
+  }
+
+  return json(result);
+}
+
+
+// ==================================================
+// COOKIE
+// ==================================================
+
+function getCookie(
+  request,
+  name
+) {
+  const header =
+    request.headers.get(
+      "Cookie"
+    );
+
+  if (!header) {
+    return null;
+  }
+
+  for (
+    const part of header.split(";")
+  ) {
+    const index =
+      part.indexOf("=");
+
+    if (index === -1) {
+      continue;
+    }
+
+    const key =
+      part
+        .slice(0, index)
+        .trim();
+
+    if (key !== name) {
+      continue;
+    }
+
+    const value =
+      part
+        .slice(index + 1)
+        .trim();
+
+    try {
+      return decodeURIComponent(
+        value
+      );
+    } catch {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+
+// ==================================================
+// DISCORD USERNAME
+// ==================================================
+
+function getDiscordUsername(
+  user
+) {
+  if (user.global_name) {
+    return user.global_name;
+  }
+
+  if (user.username) {
+    return user.username;
+  }
+
+  return "Discord User";
+}
+
+
+// ==================================================
+// JSON RESPONSE
+// ==================================================
 
 function json(
   data,
@@ -1313,9 +1676,154 @@ function json(
 }
 
 
-// =====================================================
-// ADMIN HTML
-// =====================================================
+function textResponse(
+  text,
+  status = 200
+) {
+  return new Response(
+    text,
+    {
+      status,
+      headers: {
+        "Content-Type":
+          "text/plain; charset=UTF-8",
+        "Cache-Control":
+          "no-store"
+      }
+    }
+  );
+}
+
+
+// ==================================================
+// ERROR PAGE
+// ==================================================
+
+function errorPage(
+  title,
+  details
+) {
+  const safeTitle =
+    escapeHtml(title);
+
+  const safeDetails =
+    escapeHtml(details);
+
+  return new Response(
+    `
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TAP Roleplay — Błąd logowania</title>
+
+<style>
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #080808;
+  color: #fff;
+  font-family: Arial, sans-serif;
+}
+
+.box {
+  width: min(650px, calc(100% - 30px));
+  padding: 30px;
+  border: 1px solid #292929;
+  border-radius: 15px;
+  background: #111;
+}
+
+h1 {
+  color: #ff6a00;
+}
+
+.details {
+  padding: 15px;
+  background: #080808;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #ccc;
+}
+
+a {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: #ff6a00;
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+<div class="box">
+  <h1>${safeTitle}</h1>
+
+  <div class="details">
+${safeDetails}
+  </div>
+
+  <a href="/">Wróć na stronę</a>
+</div>
+</body>
+</html>
+    `,
+    {
+      status: 500,
+      headers: {
+        "Content-Type":
+          "text/html; charset=UTF-8",
+        "Cache-Control":
+          "no-store"
+      }
+    }
+  );
+}
+
+
+// ==================================================
+// ESCAPE HTML
+// ==================================================
+
+function escapeHtml(
+  value
+) {
+  return String(value)
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
+}
+
+
+// ==================================================
+// ADMIN PAGE
+// ==================================================
 
 const ADMIN_HTML = `
 <!DOCTYPE html>
@@ -1334,14 +1842,14 @@ const ADMIN_HTML = `
 body {
   margin: 0;
   background: #080808;
-  color: #fff;
+  color: white;
   font-family: Arial, sans-serif;
 }
 
 header {
   padding: 22px;
-  border-bottom: 1px solid #242424;
   background: #0d0d0d;
+  border-bottom: 1px solid #292929;
 }
 
 h1 {
@@ -1368,8 +1876,8 @@ button {
   padding: 12px;
   border-radius: 8px;
   border: 1px solid #333;
-  background: #181818;
   color: white;
+  background: #181818;
 }
 
 input {
@@ -1381,7 +1889,6 @@ button {
   cursor: pointer;
   background: #ff6a00;
   border-color: #ff6a00;
-  color: #fff;
   font-weight: bold;
 }
 
@@ -1394,26 +1901,26 @@ table {
   border-collapse: collapse;
 }
 
-td,
-th {
-  text-align: left;
+th,
+td {
   padding: 10px;
+  text-align: left;
   border-bottom: 1px solid #292929;
 }
 
-.status-on {
-  color: #49d17d;
+.green {
+  color: #4bd47d;
 }
 
-.status-off {
+.red {
   color: #ff5555;
 }
 
 .message {
   margin-top: 12px;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 12px;
   background: #181818;
+  border-radius: 8px;
 }
 </style>
 </head>
@@ -1426,44 +1933,50 @@ th {
 
 <main>
 
-  <div class="card">
-    <h2>Saldo gracza</h2>
+<div class="card">
 
-    <input
-      id="discordId"
-      placeholder="Discord ID gracza"
-    >
+<h2>Saldo gracza</h2>
 
-    <input
-      id="amount"
-      type="number"
-      placeholder="Kwota, np. 100 lub -50"
-    >
+<input
+  id="discordId"
+  placeholder="Discord ID gracza"
+/>
 
-    <button onclick="changeBalance()">
-      Zmień saldo
-    </button>
+<input
+  id="amount"
+  type="number"
+  placeholder="Kwota, np. 100 lub -50"
+/>
 
-    <div id="balanceMessage"></div>
-  </div>
+<button onclick="changeBalance()">
+  Zmień saldo
+</button>
 
+<div id="balanceMessage"></div>
 
-  <div class="card">
-    <h2>Produkty</h2>
-
-    <div id="products">
-      Ładowanie...
-    </div>
-  </div>
+</div>
 
 
-  <div class="card">
-    <h2>Transakcje</h2>
+<div class="card">
 
-    <div id="transactions">
-      Ładowanie...
-    </div>
-  </div>
+<h2>Produkty</h2>
+
+<div id="products">
+Ładowanie...
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>Transakcje</h2>
+
+<div id="transactions">
+Ładowanie...
+</div>
+
+</div>
 
 </main>
 
@@ -1471,24 +1984,34 @@ th {
 
 async function changeBalance() {
   const discordId =
-    document.getElementById("discordId").value.trim();
+    document.getElementById(
+      "discordId"
+    ).value.trim();
 
   const amount =
     Number(
-      document.getElementById("amount").value
+      document.getElementById(
+        "amount"
+      ).value
     );
 
   const response =
-    await fetch("/api/admin/balance", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        discord_id: discordId,
-        amount
-      })
-    });
+    await fetch(
+      "/api/admin/balance",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+        body:
+          JSON.stringify({
+            discord_id:
+              discordId,
+            amount
+          })
+      }
+    );
 
   const data =
     await response.json();
@@ -1499,7 +2022,9 @@ async function changeBalance() {
     "<div class='message'>" +
     (
       data.error ||
-      "Saldo: " + data.balance + " PLN"
+      "Saldo: " +
+      data.balance +
+      " PLN"
     ) +
     "</div>";
 
@@ -1523,45 +2048,72 @@ async function loadProducts() {
 
   if (!data.products) {
     container.textContent =
-      data.error || "Błąd.";
+      data.error ||
+      "Błąd.";
     return;
   }
 
   container.innerHTML =
-    data.products.map(product => {
+    data.products
+      .map(product => {
+        const active =
+          Number(
+            product.active
+          ) === 1;
 
-      const active =
-        Number(product.active) === 1;
-
-      return \`
-        <div
-          style="
-            padding:15px;
-            border-bottom:1px solid #292929;
-          "
-        >
-          <strong>
-            \${escapeHtml(product.name)}
-          </strong>
-
-          —
-          \${product.price} PLN
-
-          <span
-            class="\${active ? "status-on" : "status-off"}"
+        return \`
+          <div
+            style="
+              padding:15px;
+              border-bottom:
+                1px solid #292929;
+            "
           >
-            \${active ? "AKTYWNY" : "WYŁĄCZONY"}
-          </span>
 
-          <button
-            style="margin-left:10px"
-            onclick="toggleProduct(\${product.id})"
-          >
-            \${active ? "Wyłącz" : "Włącz"}
-          </button>
-        </div>
-      \`;
-    }).join("");
+            <strong>
+              \${escapeHtml(
+                product.name
+              )}
+            </strong>
+
+            —
+            \${product.price} PLN
+
+            <span
+              class="\${
+                active
+                  ? "green"
+                  : "red"
+              }"
+            >
+              \${
+                active
+                  ? " AKTYWNY"
+                  : " WYŁĄCZONY"
+              }
+            </span>
+
+            <button
+              style="
+                margin-left:10px;
+              "
+              onclick="
+                toggleProduct(
+                  \${product.id}
+                )
+              "
+            >
+              \${
+                active
+                  ? "Wyłącz"
+                  : "Włącz"
+              }
+            </button>
+
+          </div>
+        \`;
+      })
+      .join("");
 }
 
 
@@ -1574,9 +2126,10 @@ async function toggleProduct(id) {
         "Content-Type":
           "application/json"
       },
-      body: JSON.stringify({
-        product_id: id
-      })
+      body:
+        JSON.stringify({
+          product_id: id
+        })
     }
   );
 
@@ -1600,7 +2153,8 @@ async function loadTransactions() {
 
   if (!data.transactions) {
     container.textContent =
-      data.error || "Błąd.";
+      data.error ||
+      "Błąd.";
     return;
   }
 
@@ -1615,34 +2169,43 @@ async function loadTransactions() {
     "<th>Data</th>" +
     "</tr>" +
 
-    data.transactions.map(t =>
-      "<tr>" +
-      "<td>" +
-      escapeHtml(t.discord_id) +
-      "</td>" +
+    data.transactions
+      .map(t =>
+        "<tr>" +
 
-      "<td>" +
-      escapeHtml(t.type) +
-      "</td>" +
+        "<td>" +
+        escapeHtml(
+          t.discord_id
+        ) +
+        "</td>" +
 
-      "<td>" +
-      t.amount +
-      "</td>" +
+        "<td>" +
+        escapeHtml(
+          t.type
+        ) +
+        "</td>" +
 
-      "<td>" +
-      t.balance_before +
-      "</td>" +
+        "<td>" +
+        t.amount +
+        "</td>" +
 
-      "<td>" +
-      t.balance_after +
-      "</td>" +
+        "<td>" +
+        t.balance_before +
+        "</td>" +
 
-      "<td>" +
-      escapeHtml(t.created_at) +
-      "</td>" +
+        "<td>" +
+        t.balance_after +
+        "</td>" +
 
-      "</tr>"
-    ).join("") +
+        "<td>" +
+        escapeHtml(
+          t.created_at
+        ) +
+        "</td>" +
+
+        "</tr>"
+      )
+      .join("") +
 
     "</table>";
 }
@@ -1650,11 +2213,26 @@ async function loadTransactions() {
 
 function escapeHtml(value) {
   return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
 }
 
 
