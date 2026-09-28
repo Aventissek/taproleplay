@@ -6,25 +6,11 @@ export default {
     const url = new URL(request.url);
 
     try {
-      // ==========================================
-      // HEALTH CHECK
-      // ==========================================
-
-      if (
-        url.pathname === "/api/health" &&
-        request.method === "GET"
-      ) {
+      if (url.pathname === "/api/health" && request.method === "GET") {
         return await healthCheck(env);
       }
 
-      // ==========================================
-      // LOGIN
-      // ==========================================
-
-      if (
-        url.pathname === "/login" &&
-        request.method === "GET"
-      ) {
+      if (url.pathname === "/login" && request.method === "GET") {
         if (!env.DISCORD_CLIENT_ID) {
           return textResponse(
             "Brak DISCORD_CLIENT_ID w konfiguracji Cloudflare.",
@@ -32,29 +18,23 @@ export default {
           );
         }
 
-        const redirectUri =
-          `${url.origin}/callback`;
-
-        const discordUrl =
-          new URL(
-            "https://discord.com/oauth2/authorize"
-          );
+        const redirectUri = `${url.origin}/callback`;
+        const discordUrl = new URL(
+          "https://discord.com/oauth2/authorize"
+        );
 
         discordUrl.searchParams.set(
           "client_id",
           env.DISCORD_CLIENT_ID
         );
-
         discordUrl.searchParams.set(
           "response_type",
           "code"
         );
-
         discordUrl.searchParams.set(
           "redirect_uri",
           redirectUri
         );
-
         discordUrl.searchParams.set(
           "scope",
           "identify"
@@ -66,14 +46,7 @@ export default {
         );
       }
 
-      // ==========================================
-      // DISCORD CALLBACK
-      // ==========================================
-
-      if (
-        url.pathname === "/callback" &&
-        request.method === "GET"
-      ) {
+      if (url.pathname === "/callback" && request.method === "GET") {
         return await handleDiscordCallback(
           request,
           env,
@@ -81,35 +54,17 @@ export default {
         );
       }
 
-      // ==========================================
-      // LOGOUT
-      // ==========================================
+      if (url.pathname === "/logout" && request.method === "GET") {
+        return await logout(request, env);
+      }
 
-      if (
-        url.pathname === "/logout" &&
-        request.method === "GET"
-      ) {
-        return await logout(
+      if (url.pathname === "/me" && request.method === "GET") {
+        await ensureSchema(env);
+
+        const user = await getCurrentUser(
           request,
           env
         );
-      }
-
-      // ==========================================
-      // CURRENT USER
-      // ==========================================
-
-      if (
-        url.pathname === "/me" &&
-        request.method === "GET"
-      ) {
-        await ensureSchema(env);
-
-        const user =
-          await getCurrentUser(
-            request,
-            env
-          );
 
         if (!user) {
           return json({
@@ -128,44 +83,35 @@ export default {
         });
       }
 
-      // ==========================================
-      // PRODUCTS
-      // ==========================================
-
       if (
         url.pathname === "/api/products" &&
         request.method === "GET"
       ) {
         await ensureSchema(env);
 
-        const result =
-          await env.DB.prepare(`
-            SELECT
-              id,
-              name,
-              description,
-              price,
-              type,
-              duration_days,
-              active,
-              featured,
-              sort_order
-            FROM products
-            WHERE active = 1
-            ORDER BY
-              featured DESC,
-              sort_order ASC,
-              id ASC
-          `).all();
+        const result = await env.DB.prepare(`
+          SELECT
+            id,
+            name,
+            description,
+            price,
+            type,
+            duration_days,
+            active,
+            featured,
+            sort_order
+          FROM products
+          WHERE active = 1
+          ORDER BY
+            featured DESC,
+            sort_order ASC,
+            id ASC
+        `).all();
 
         return json({
           products: result.results || []
         });
       }
-
-      // ==========================================
-      // PURCHASE
-      // ==========================================
 
       if (
         url.pathname === "/api/purchase" &&
@@ -177,20 +123,13 @@ export default {
         );
       }
 
-      // ==========================================
-      // ADMIN API
-      // ==========================================
-
-      if (
-        url.pathname.startsWith("/api/admin/")
-      ) {
+      if (url.pathname.startsWith("/api/admin/")) {
         await ensureSchema(env);
 
-        const admin =
-          await requireAdmin(
-            request,
-            env
-          );
+        const admin = await requireAdmin(
+          request,
+          env
+        );
 
         if (!admin.ok) {
           return admin.response;
@@ -202,10 +141,6 @@ export default {
           url
         );
       }
-
-      // ==========================================
-      // ADMIN PAGE
-      // ==========================================
 
       if (
         url.pathname === "/admin" &&
@@ -224,10 +159,6 @@ export default {
           }
         );
       }
-
-      // ==========================================
-      // STATIC ASSETS
-      // ==========================================
 
       return env.ASSETS.fetch(request);
 
@@ -253,7 +184,7 @@ export default {
 
 
 // ==================================================
-// DISCORD OAUTH
+// DISCORD OAUTH CALLBACK
 // ==================================================
 
 async function handleDiscordCallback(
@@ -272,8 +203,7 @@ async function handleDiscordCallback(
 
     return errorPage(
       "Logowanie przez Discord zostało anulowane.",
-      description ||
-        oauthError
+      description || oauthError
     );
   }
 
@@ -304,42 +234,32 @@ async function handleDiscordCallback(
   const redirectUri =
     `${url.origin}/callback`;
 
-  console.log(
-    "Discord OAuth redirect URI:",
-    redirectUri
+  const tokenResponse = await fetch(
+    "https://discord.com/api/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/x-www-form-urlencoded"
+      },
+      body:
+        new URLSearchParams({
+          client_id:
+            env.DISCORD_CLIENT_ID,
+
+          client_secret:
+            env.DISCORD_CLIENT_SECRET,
+
+          grant_type:
+            "authorization_code",
+
+          code,
+
+          redirect_uri:
+            redirectUri
+        }).toString()
+    }
   );
-
-  // ==========================================
-  // CODE -> ACCESS TOKEN
-  // ==========================================
-
-  const tokenResponse =
-    await fetch(
-      "https://discord.com/api/oauth2/token",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/x-www-form-urlencoded"
-        },
-        body:
-          new URLSearchParams({
-            client_id:
-              env.DISCORD_CLIENT_ID,
-
-            client_secret:
-              env.DISCORD_CLIENT_SECRET,
-
-            grant_type:
-              "authorization_code",
-
-            code,
-
-            redirect_uri:
-              redirectUri
-          }).toString()
-      }
-    );
 
   const tokenText =
     await tokenResponse.text();
@@ -351,8 +271,7 @@ async function handleDiscordCallback(
       tokenText
     );
 
-    let details =
-      tokenText;
+    let details = tokenText;
 
     try {
       const parsed =
@@ -389,21 +308,16 @@ async function handleDiscordCallback(
     );
   }
 
-  // ==========================================
-  // ACCESS TOKEN -> USER
-  // ==========================================
-
-  const userResponse =
-    await fetch(
-      "https://discord.com/api/users/@me",
-      {
-        method: "GET",
-        headers: {
-          "Authorization":
-            `Bearer ${token.access_token}`
-        }
+  const userResponse = await fetch(
+    "https://discord.com/api/users/@me",
+    {
+      method: "GET",
+      headers: {
+        "Authorization":
+          `Bearer ${token.access_token}`
       }
-    );
+    }
+  );
 
   const userText =
     await userResponse.text();
@@ -440,10 +354,6 @@ async function handleDiscordCallback(
     );
   }
 
-  // ==========================================
-  // DATABASE
-  // ==========================================
-
   await ensureSchema(env);
 
   const username =
@@ -458,6 +368,7 @@ async function handleDiscordCallback(
       balance
     )
     VALUES (?, ?, 0)
+
     ON CONFLICT(discord_id)
     DO UPDATE SET
       username = excluded.username,
@@ -468,10 +379,6 @@ async function handleDiscordCallback(
       username
     )
     .run();
-
-  // ==========================================
-  // SESSION
-  // ==========================================
 
   const sessionId =
     crypto.randomUUID();
@@ -558,7 +465,7 @@ async function logout(
 
 
 // ==================================================
-// DATABASE
+// DATABASE SCHEMA
 // ==================================================
 
 async function ensureSchema(env) {
@@ -567,10 +474,6 @@ async function ensureSchema(env) {
       "Brak bindingu DB."
     );
   }
-
-  // ==========================================
-  // USERS
-  // ==========================================
 
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS users (
@@ -581,10 +484,6 @@ async function ensureSchema(env) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
-
-  // ==========================================
-  // TRANSACTIONS
-  // ==========================================
 
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS transactions (
@@ -605,10 +504,6 @@ async function ensureSchema(env) {
     ON transactions(discord_id)
   `).run();
 
-  // ==========================================
-  // PRODUCTS
-  // ==========================================
-
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -626,7 +521,7 @@ async function ensureSchema(env) {
   `).run();
 
   // ==========================================
-  // MIGRACJA PRODUCTS
+  // PRODUCTS MIGRATION
   // ==========================================
 
   const productColumns =
@@ -641,9 +536,7 @@ async function ensureSchema(env) {
           String(column.name)
       );
 
-  if (
-    !productNames.includes("type")
-  ) {
+  if (!productNames.includes("type")) {
     await env.DB.prepare(`
       ALTER TABLE products
       ADD COLUMN type TEXT NOT NULL DEFAULT 'standard'
@@ -661,9 +554,7 @@ async function ensureSchema(env) {
     `).run();
   }
 
-  if (
-    !productNames.includes("active")
-  ) {
+  if (!productNames.includes("active")) {
     await env.DB.prepare(`
       ALTER TABLE products
       ADD COLUMN active INTEGER NOT NULL DEFAULT 1
@@ -671,7 +562,9 @@ async function ensureSchema(env) {
   }
 
   if (
-    !productNames.includes("featured")
+    !productNames.includes(
+      "featured"
+    )
   ) {
     await env.DB.prepare(`
       ALTER TABLE products
@@ -690,10 +583,6 @@ async function ensureSchema(env) {
     `).run();
   }
 
-  // ==========================================
-  // PURCHASES
-  // ==========================================
-
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS purchases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -709,10 +598,6 @@ async function ensureSchema(env) {
     )
   `).run();
 
-  // ==========================================
-  // SESSIONS
-  // ==========================================
-
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -722,15 +607,13 @@ async function ensureSchema(env) {
   `).run();
 
   // ==========================================
-  // MIGRACJA PURCHASES
+  // PURCHASES MIGRATION
   // ==========================================
 
   const purchaseColumns =
-    await env.DB
-      .prepare(
-        "PRAGMA table_info(purchases)"
-      )
-      .all();
+    await env.DB.prepare(
+      "PRAGMA table_info(purchases)"
+    ).all();
 
   const purchaseNames =
     (purchaseColumns.results || [])
@@ -779,12 +662,10 @@ async function ensureSchema(env) {
   // ==========================================
 
   const productCount =
-    await env.DB
-      .prepare(`
-        SELECT COUNT(*) AS count
-        FROM products
-      `)
-      .first();
+    await env.DB.prepare(`
+      SELECT COUNT(*) AS count
+      FROM products
+    `).first();
 
   if (
     !productCount ||
@@ -812,10 +693,6 @@ async function ensureSchema(env) {
       )
       .run();
   }
-
-  // ==========================================
-  // CLEAN OLD SESSIONS
-  // ==========================================
 
   await env.DB.prepare(`
     DELETE FROM sessions
@@ -995,10 +872,6 @@ async function purchaseProduct(
     );
   }
 
-  // ==========================================
-  // AKTUALNE SALDO
-  // ==========================================
-
   const freshUser =
     await env.DB.prepare(`
       SELECT *
@@ -1038,7 +911,7 @@ async function purchaseProduct(
     crypto.randomUUID();
 
   // ==========================================
-  // UNBAN -> DISCORD WEBHOOK
+  // UNBAN -> BOT
   // ==========================================
 
   if (
@@ -1051,7 +924,7 @@ async function purchaseProduct(
       );
     } catch (error) {
       console.error(
-        "UNBAN WEBHOOK ERROR:",
+        "UNBAN DISCORD ERROR:",
         error
       );
 
@@ -1170,10 +1043,12 @@ async function purchaseProduct(
 
   return json({
     success: true,
+
     message:
       product.type === "unban"
         ? "Unban został wysłany."
         : "Zakup został wykonany.",
+
     balance:
       balanceAfter
   });
@@ -1181,64 +1056,63 @@ async function purchaseProduct(
 
 
 // ==================================================
-// DISCORD WEBHOOK
+// DISCORD BOT
 // ==================================================
 
 async function sendUnbanCommandToDiscord(
   env,
   uid
 ) {
-  if (
-    !env.DISCORD_UNBAN_WEBHOOK_URL
-  ) {
+  if (!env.DISCORD_BOT_TOKEN) {
     throw new Error(
-      "Brak DISCORD_UNBAN_WEBHOOK_URL."
+      "Brak DISCORD_BOT_TOKEN."
     );
   }
 
-  const webhookUrl =
+  if (!env.DISCORD_SHOP_CHANNEL_ID) {
+    throw new Error(
+      "Brak DISCORD_SHOP_CHANNEL_ID."
+    );
+  }
+
+  const channelId =
     String(
-      env.DISCORD_UNBAN_WEBHOOK_URL
+      env.DISCORD_SHOP_CHANNEL_ID
     );
 
-  // ?wait=true powoduje, że Discord
-  // zwróci odpowiedź po utworzeniu wiadomości.
+  const response = await fetch(
+    `https://discord.com/api/v10/channels/${channelId}/messages`,
+    {
+      method: "POST",
 
-  const separator =
-    webhookUrl.includes("?")
-      ? "&"
-      : "?";
+      headers: {
+        "Authorization":
+          `Bot ${env.DISCORD_BOT_TOKEN}`,
 
-  const response =
-    await fetch(
-      `${webhookUrl}${separator}wait=true`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
-        body:
-          JSON.stringify({
-            content:
-              `.unban ${uid}`
-          })
-      }
-    );
+        "Content-Type":
+          "application/json"
+      },
+
+      body: JSON.stringify({
+        content:
+          `.unban ${uid}`
+      })
+    }
+  );
 
   const responseText =
     await response.text();
 
   if (!response.ok) {
     throw new Error(
-      `Discord webhook ${response.status}: ${responseText}`
+      `Discord ${response.status}: ${responseText}`
     );
   }
 }
 
 
 // ==================================================
-// ADMIN
+// ADMIN AUTH
 // ==================================================
 
 async function requireAdmin(
@@ -1266,7 +1140,9 @@ async function requireAdmin(
 
   if (
     String(user.discord_id) !==
-    String(env.ADMIN_DISCORD_ID || "")
+    String(
+      env.ADMIN_DISCORD_ID || ""
+    )
   ) {
     return {
       ok: false,
@@ -1287,18 +1163,19 @@ async function requireAdmin(
 }
 
 
+// ==================================================
+// ADMIN API
+// ==================================================
+
 async function handleAdmin(
   request,
   env,
   url
 ) {
-  // ==========================================
   // USERS
-  // ==========================================
-
   if (
     url.pathname ===
-    "/api/admin/users" &&
+      "/api/admin/users" &&
     request.method === "GET"
   ) {
     const discordId =
@@ -1337,13 +1214,10 @@ async function handleAdmin(
     });
   }
 
-  // ==========================================
   // BALANCE
-  // ==========================================
-
   if (
     url.pathname ===
-    "/api/admin/balance" &&
+      "/api/admin/balance" &&
     request.method === "POST"
   ) {
     let body;
@@ -1445,12 +1319,16 @@ async function handleAdmin(
     `)
       .bind(
         discordId,
+
         amount > 0
           ? "admin_add"
           : "admin_remove",
+
         amount,
+
         before,
         after,
+
         env.ADMIN_DISCORD_ID
       )
       .run();
@@ -1461,13 +1339,10 @@ async function handleAdmin(
     });
   }
 
-  // ==========================================
   // TRANSACTIONS
-  // ==========================================
-
   if (
     url.pathname ===
-    "/api/admin/transactions" &&
+      "/api/admin/transactions" &&
     request.method === "GET"
   ) {
     const discordId =
@@ -1504,13 +1379,10 @@ async function handleAdmin(
     });
   }
 
-  // ==========================================
   // PRODUCTS
-  // ==========================================
-
   if (
     url.pathname ===
-    "/api/admin/products" &&
+      "/api/admin/products" &&
     request.method === "GET"
   ) {
     const result =
@@ -1528,13 +1400,10 @@ async function handleAdmin(
     });
   }
 
-  // ==========================================
   // TOGGLE PRODUCT
-  // ==========================================
-
   if (
     url.pathname ===
-    "/api/admin/products/toggle" &&
+      "/api/admin/products/toggle" &&
     request.method === "POST"
   ) {
     let body;
@@ -1553,10 +1422,14 @@ async function handleAdmin(
     }
 
     const productId =
-      Number(body.product_id);
+      Number(
+        body.product_id
+      );
 
     if (
-      !Number.isInteger(productId)
+      !Number.isInteger(
+        productId
+      )
     ) {
       return json(
         {
@@ -1622,31 +1495,49 @@ async function handleAdmin(
 
 
 // ==================================================
-// HEALTH
+// HEALTH CHECK
 // ==================================================
 
 async function healthCheck(env) {
   const result = {
     worker: true,
+
     database: false,
-    discord_client_id: Boolean(
-      env.DISCORD_CLIENT_ID
-    ),
-    discord_client_secret: Boolean(
-      env.DISCORD_CLIENT_SECRET
-    ),
-    session_secret: Boolean(
-      env.SESSION_SECRET
-    ),
-    discord_unban_webhook: Boolean(
-      env.DISCORD_UNBAN_WEBHOOK_URL
-    ),
-    admin_id: Boolean(
-      env.ADMIN_DISCORD_ID
-    ),
-    assets: Boolean(
-      env.ASSETS
-    )
+
+    discord_client_id:
+      Boolean(
+        env.DISCORD_CLIENT_ID
+      ),
+
+    discord_client_secret:
+      Boolean(
+        env.DISCORD_CLIENT_SECRET
+      ),
+
+    session_secret:
+      Boolean(
+        env.SESSION_SECRET
+      ),
+
+    discord_bot_token:
+      Boolean(
+        env.DISCORD_BOT_TOKEN
+      ),
+
+    discord_shop_channel:
+      Boolean(
+        env.DISCORD_SHOP_CHANNEL_ID
+      ),
+
+    admin_id:
+      Boolean(
+        env.ADMIN_DISCORD_ID
+      ),
+
+    assets:
+      Boolean(
+        env.ASSETS
+      )
   };
 
   try {
@@ -1661,6 +1552,7 @@ async function healthCheck(env) {
       .first();
 
     result.database = true;
+
   } catch (error) {
     result.database_error =
       error?.message ||
@@ -1745,7 +1637,7 @@ function getDiscordUsername(
 
 
 // ==================================================
-// JSON RESPONSE
+// JSON
 // ==================================================
 
 function json(
@@ -1766,6 +1658,10 @@ function json(
   );
 }
 
+
+// ==================================================
+// TEXT
+// ==================================================
 
 function textResponse(
   text,
@@ -1801,31 +1697,53 @@ function errorPage(
     escapeHtml(details);
 
   return new Response(
-    `
+`
 <!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TAP Roleplay — Błąd logowania</title>
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+>
+
+<title>
+TAP Roleplay — Błąd logowania
+</title>
 
 <style>
+
 body {
   margin: 0;
   min-height: 100vh;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   background: #080808;
   color: #fff;
-  font-family: Arial, sans-serif;
+
+  font-family:
+    Arial,
+    sans-serif;
 }
 
 .box {
-  width: min(650px, calc(100% - 30px));
+  width:
+    min(
+      650px,
+      calc(100% - 30px)
+    );
+
   padding: 30px;
-  border: 1px solid #292929;
+
+  border:
+    1px solid #292929;
+
   border-radius: 15px;
+
   background: #111;
 }
 
@@ -1835,44 +1753,68 @@ h1 {
 
 .details {
   padding: 15px;
+
   background: #080808;
+
   border-radius: 10px;
+
   white-space: pre-wrap;
+
   word-break: break-word;
+
   color: #ccc;
 }
 
 a {
   display: inline-block;
+
   margin-top: 20px;
+
   padding: 12px 18px;
+
   border-radius: 8px;
+
   background: #ff6a00;
+
   color: white;
+
   text-decoration: none;
+
   font-weight: bold;
 }
+
 </style>
+
 </head>
 
 <body>
+
 <div class="box">
-  <h1>${safeTitle}</h1>
 
-  <div class="details">
+<h1>
+${safeTitle}
+</h1>
+
+<div class="details">
 ${safeDetails}
-  </div>
-
-  <a href="/">Wróć na stronę</a>
 </div>
+
+<a href="/">
+Wróć na stronę
+</a>
+
+</div>
+
 </body>
 </html>
-    `,
+`,
     {
       status: 500,
+
       headers: {
         "Content-Type":
           "text/html; charset=UTF-8",
+
         "Cache-Control":
           "no-store"
       }
@@ -1913,73 +1855,110 @@ function escapeHtml(
 
 
 // ==================================================
-// ADMIN PAGE
+// ADMIN HTML
 // ==================================================
 
 const ADMIN_HTML = `
 <!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>TAP Roleplay — Admin</title>
+<html lang="pl">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+>
+
+<title>
+TAP Roleplay — Admin
+</title>
 
 <style>
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+
   background: #080808;
+
   color: white;
-  font-family: Arial, sans-serif;
+
+  font-family:
+    Arial,
+    sans-serif;
 }
 
 header {
   padding: 22px;
+
   background: #0d0d0d;
-  border-bottom: 1px solid #292929;
+
+  border-bottom:
+    1px solid #292929;
 }
 
 h1 {
   margin: 0;
+
   color: #ff6a00;
 }
 
 main {
   max-width: 1100px;
+
   margin: 30px auto;
-  padding: 0 20px;
+
+  padding:
+    0 20px;
 }
 
 .card {
   background: #111;
-  border: 1px solid #292929;
+
+  border:
+    1px solid #292929;
+
   border-radius: 12px;
+
   padding: 20px;
+
   margin-bottom: 20px;
 }
 
 input,
 button {
   padding: 12px;
+
   border-radius: 8px;
-  border: 1px solid #333;
+
+  border:
+    1px solid #333;
+
   color: white;
+
   background: #181818;
 }
 
 input {
   width: 100%;
+
   margin-bottom: 10px;
 }
 
 button {
   cursor: pointer;
+
   background: #ff6a00;
-  border-color: #ff6a00;
+
+  border-color:
+    #ff6a00;
+
   font-weight: bold;
 }
 
@@ -1989,14 +1968,19 @@ button:hover {
 
 table {
   width: 100%;
-  border-collapse: collapse;
+
+  border-collapse:
+    collapse;
 }
 
 th,
 td {
   padding: 10px;
+
   text-align: left;
-  border-bottom: 1px solid #292929;
+
+  border-bottom:
+    1px solid #292929;
 }
 
 .green {
@@ -2009,24 +1993,35 @@ td {
 
 .message {
   margin-top: 12px;
+
   padding: 12px;
+
   background: #181818;
+
   border-radius: 8px;
 }
+
 </style>
+
 </head>
 
 <body>
 
 <header>
-  <h1>TAP Roleplay — Panel Admina</h1>
+
+<h1>
+TAP Roleplay — Panel Admina
+</h1>
+
 </header>
 
 <main>
 
 <div class="card">
 
-<h2>Saldo gracza</h2>
+<h2>
+Saldo gracza
+</h2>
 
 <input
   id="discordId"
@@ -2040,17 +2035,20 @@ td {
 />
 
 <button onclick="changeBalance()">
-  Zmień saldo
+Zmień saldo
 </button>
 
-<div id="balanceMessage"></div>
+<div id="balanceMessage">
+</div>
 
 </div>
 
 
 <div class="card">
 
-<h2>Produkty</h2>
+<h2>
+Produkty
+</h2>
 
 <div id="products">
 Ładowanie...
@@ -2061,7 +2059,9 @@ td {
 
 <div class="card">
 
-<h2>Transakcje</h2>
+<h2>
+Transakcje
+</h2>
 
 <div id="transactions">
 Ładowanie...
@@ -2071,19 +2071,26 @@ td {
 
 </main>
 
+
 <script>
 
 async function changeBalance() {
+
   const discordId =
-    document.getElementById(
-      "discordId"
-    ).value.trim();
+    document
+      .getElementById(
+        "discordId"
+      )
+      .value
+      .trim();
 
   const amount =
     Number(
-      document.getElementById(
-        "amount"
-      ).value
+      document
+        .getElementById(
+          "amount"
+        )
+        .value
     );
 
   const response =
@@ -2091,14 +2098,17 @@ async function changeBalance() {
       "/api/admin/balance",
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json"
         },
+
         body:
           JSON.stringify({
             discord_id:
               discordId,
+
             amount
           })
       }
@@ -2107,23 +2117,28 @@ async function changeBalance() {
   const data =
     await response.json();
 
-  document.getElementById(
-    "balanceMessage"
-  ).innerHTML =
-    "<div class='message'>" +
-    (
-      data.error ||
-      "Saldo: " +
-      data.balance +
-      " PLN"
-    ) +
-    "</div>";
+  document
+    .getElementById(
+      "balanceMessage"
+    )
+    .innerHTML =
+      "<div class='message'>" +
+      (
+        data.error ||
+        (
+          "Saldo: " +
+          data.balance +
+          " PLN"
+        )
+      ) +
+      "</div>";
 
   loadTransactions();
 }
 
 
 async function loadProducts() {
+
   const response =
     await fetch(
       "/api/admin/products"
@@ -2138,85 +2153,95 @@ async function loadProducts() {
     );
 
   if (!data.products) {
+
     container.textContent =
       data.error ||
       "Błąd.";
+
     return;
   }
 
   container.innerHTML =
     data.products
-      .map(product => {
-        const active =
-          Number(
-            product.active
-          ) === 1;
+      .map(
+        product => {
 
-        return \`
-          <div
-            style="
-              padding:15px;
-              border-bottom:
-                1px solid #292929;
-            "
-          >
+          const active =
+            Number(
+              product.active
+            ) === 1;
 
-            <strong>
-              \${escapeHtml(
-                product.name
-              )}
-            </strong>
-
-            —
-            \${product.price} PLN
-
-            <span
-              class="\${
-                active
-                  ? "green"
-                  : "red"
-              }"
-            >
-              \${
-                active
-                  ? " AKTYWNY"
-                  : " WYŁĄCZONY"
-              }
-            </span>
-
-            <button
+          return \`
+            <div
               style="
-                margin-left:10px;
-              "
-              onclick="
-                toggleProduct(
-                  \${product.id}
-                )
+                padding:15px;
+                border-bottom:
+                  1px solid #292929;
               "
             >
-              \${
-                active
-                  ? "Wyłącz"
-                  : "Włącz"
-              }
-            </button>
 
-          </div>
-        \`;
-      })
+              <strong>
+                \${escapeHtml(
+                  product.name
+                )}
+              </strong>
+
+              —
+              \${product.price} PLN
+
+              <span
+                class="\${
+                  active
+                    ? "green"
+                    : "red"
+                }"
+              >
+                \${
+                  active
+                    ? " AKTYWNY"
+                    : " WYŁĄCZONY"
+                }
+              </span>
+
+              <button
+                style="
+                  margin-left:10px;
+                "
+                onclick="
+                  toggleProduct(
+                    \${product.id}
+                  )
+                "
+              >
+                \${
+                  active
+                    ? "Wyłącz"
+                    : "Włącz"
+                }
+              </button>
+
+            </div>
+          \`;
+        }
+      )
       .join("");
 }
 
 
-async function toggleProduct(id) {
+async function toggleProduct(
+  id
+) {
+
   await fetch(
     "/api/admin/products/toggle",
     {
       method: "POST",
+
       headers: {
         "Content-Type":
           "application/json"
       },
+
       body:
         JSON.stringify({
           product_id: id
@@ -2229,6 +2254,7 @@ async function toggleProduct(id) {
 
 
 async function loadTransactions() {
+
   const response =
     await fetch(
       "/api/admin/transactions"
@@ -2243,58 +2269,70 @@ async function loadTransactions() {
     );
 
   if (!data.transactions) {
+
     container.textContent =
       data.error ||
       "Błąd.";
+
     return;
   }
 
   container.innerHTML =
     "<table>" +
+
     "<tr>" +
+
     "<th>Discord ID</th>" +
+
     "<th>Typ</th>" +
+
     "<th>Kwota</th>" +
+
     "<th>Przed</th>" +
+
     "<th>Po</th>" +
+
     "<th>Data</th>" +
+
     "</tr>" +
 
     data.transactions
-      .map(t =>
-        "<tr>" +
+      .map(
+        t =>
 
-        "<td>" +
-        escapeHtml(
-          t.discord_id
-        ) +
-        "</td>" +
+          "<tr>" +
 
-        "<td>" +
-        escapeHtml(
-          t.type
-        ) +
-        "</td>" +
+          "<td>" +
+          escapeHtml(
+            t.discord_id
+          ) +
+          "</td>" +
 
-        "<td>" +
-        t.amount +
-        "</td>" +
+          "<td>" +
+          escapeHtml(
+            t.type
+          ) +
+          "</td>" +
 
-        "<td>" +
-        t.balance_before +
-        "</td>" +
+          "<td>" +
+          t.amount +
+          "</td>" +
 
-        "<td>" +
-        t.balance_after +
-        "</td>" +
+          "<td>" +
+          t.balance_before +
+          "</td>" +
 
-        "<td>" +
-        escapeHtml(
-          t.created_at
-        ) +
-        "</td>" +
+          "<td>" +
+          t.balance_after +
+          "</td>" +
 
-        "</tr>"
+          "<td>" +
+          escapeHtml(
+            t.created_at
+          ) +
+          "</td>" +
+
+          "</tr>"
       )
       .join("") +
 
@@ -2302,7 +2340,9 @@ async function loadTransactions() {
 }
 
 
-function escapeHtml(value) {
+function escapeHtml(
+  value
+) {
   return String(value)
     .replaceAll(
       "&",
@@ -2328,10 +2368,12 @@ function escapeHtml(value) {
 
 
 loadProducts();
+
 loadTransactions();
 
 </script>
 
 </body>
+
 </html>
 `;
