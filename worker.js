@@ -32,13 +32,11 @@ export default {
           );
         }
 
-        const redirectUri =
-          `${url.origin}/callback`;
+        const redirectUri = `${url.origin}/callback`;
 
-        const discordUrl =
-          new URL(
-            "https://discord.com/oauth2/authorize"
-          );
+        const discordUrl = new URL(
+          "https://discord.com/oauth2/authorize"
+        );
 
         discordUrl.searchParams.set(
           "client_id",
@@ -89,10 +87,7 @@ export default {
         url.pathname === "/logout" &&
         request.method === "GET"
       ) {
-        return await logout(
-          request,
-          env
-        );
+        return await logout(request, env);
       }
 
       // ==========================================
@@ -105,11 +100,10 @@ export default {
       ) {
         await ensureSchema(env);
 
-        const user =
-          await getCurrentUser(
-            request,
-            env
-          );
+        const user = await getCurrentUser(
+          request,
+          env
+        );
 
         if (!user) {
           return json({
@@ -138,25 +132,24 @@ export default {
       ) {
         await ensureSchema(env);
 
-        const result =
-          await env.DB.prepare(`
-            SELECT
-              id,
-              name,
-              description,
-              price,
-              type,
-              duration_days,
-              active,
-              featured,
-              sort_order
-            FROM products
-            WHERE active = 1
-            ORDER BY
-              featured DESC,
-              sort_order ASC,
-              id ASC
-          `).all();
+        const result = await env.DB.prepare(`
+          SELECT
+            id,
+            name,
+            description,
+            price,
+            type,
+            duration_days,
+            active,
+            featured,
+            sort_order
+          FROM products
+          WHERE active = 1
+          ORDER BY
+            featured DESC,
+            sort_order ASC,
+            id ASC
+        `).all();
 
         return json({
           products: result.results || []
@@ -186,11 +179,10 @@ export default {
       ) {
         await ensureSchema(env);
 
-        const admin =
-          await requireAdmin(
-            request,
-            env
-          );
+        const admin = await requireAdmin(
+          request,
+          env
+        );
 
         if (!admin.ok) {
           return admin.response;
@@ -447,9 +439,7 @@ async function handleDiscordCallback(
   await ensureSchema(env);
 
   const username =
-    getDiscordUsername(
-      discordUser
-    );
+    getDiscordUsername(discordUser);
 
   await env.DB.prepare(`
     INSERT INTO users (
@@ -568,6 +558,10 @@ async function ensureSchema(env) {
     );
   }
 
+  // ==========================================
+  // USERS
+  // ==========================================
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS users (
       discord_id TEXT PRIMARY KEY,
@@ -577,6 +571,10 @@ async function ensureSchema(env) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+
+  // ==========================================
+  // TRANSACTIONS
+  // ==========================================
 
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS transactions (
@@ -597,6 +595,10 @@ async function ensureSchema(env) {
     ON transactions(discord_id)
   `).run();
 
+  // ==========================================
+  // PRODUCTS
+  // ==========================================
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -613,6 +615,82 @@ async function ensureSchema(env) {
     )
   `).run();
 
+  // ==========================================
+  // MIGRACJA PRODUCTS
+  // ==========================================
+  // To jest najważniejsza poprawka.
+  //
+  // CREATE TABLE IF NOT EXISTS nie dodaje
+  // brakujących kolumn do istniejącej tabeli.
+  //
+  // Sprawdzamy więc stare products i dodajemy
+  // brakujące kolumny.
+
+  const productColumns =
+    await env.DB.prepare(
+      "PRAGMA table_info(products)"
+    ).all();
+
+  const productNames =
+    (productColumns.results || [])
+      .map(
+        column =>
+          String(column.name)
+      );
+
+  if (
+    !productNames.includes("type")
+  ) {
+    await env.DB.prepare(`
+      ALTER TABLE products
+      ADD COLUMN type TEXT NOT NULL DEFAULT 'standard'
+    `).run();
+  }
+
+  if (
+    !productNames.includes(
+      "duration_days"
+    )
+  ) {
+    await env.DB.prepare(`
+      ALTER TABLE products
+      ADD COLUMN duration_days INTEGER
+    `).run();
+  }
+
+  if (
+    !productNames.includes("active")
+  ) {
+    await env.DB.prepare(`
+      ALTER TABLE products
+      ADD COLUMN active INTEGER NOT NULL DEFAULT 1
+    `).run();
+  }
+
+  if (
+    !productNames.includes("featured")
+  ) {
+    await env.DB.prepare(`
+      ALTER TABLE products
+      ADD COLUMN featured INTEGER NOT NULL DEFAULT 0
+    `).run();
+  }
+
+  if (
+    !productNames.includes(
+      "sort_order"
+    )
+  ) {
+    await env.DB.prepare(`
+      ALTER TABLE products
+      ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0
+    `).run();
+  }
+
+  // ==========================================
+  // PURCHASES
+  // ==========================================
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS purchases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -627,6 +705,10 @@ async function ensureSchema(env) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+
+  // ==========================================
+  // SESSIONS
+  // ==========================================
 
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -910,7 +992,10 @@ async function purchaseProduct(
     );
   }
 
-  // Pobierz aktualne saldo
+  // ==========================================
+  // AKTUALNE SALDO
+  // ==========================================
+
   const freshUser =
     await env.DB.prepare(`
       SELECT *
@@ -1030,6 +1115,10 @@ async function purchaseProduct(
     )
     .run();
 
+  // ==========================================
+  // TRANSACTION
+  // ==========================================
+
   await env.DB.prepare(`
     INSERT INTO transactions (
       discord_id,
@@ -1048,6 +1137,10 @@ async function purchaseProduct(
       balanceAfter
     )
     .run();
+
+  // ==========================================
+  // PURCHASE
+  // ==========================================
 
   await env.DB.prepare(`
     INSERT INTO purchases (
