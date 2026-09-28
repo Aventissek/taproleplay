@@ -27,11 +27,17 @@ export default {
         return me(request, env);
       }
 
-      if (url.pathname === "/api/products" && request.method === "GET") {
+      if (
+        url.pathname === "/api/products" &&
+        request.method === "GET"
+      ) {
         return getProducts(env);
       }
 
-      if (url.pathname === "/api/purchase" && request.method === "POST") {
+      if (
+        url.pathname === "/api/purchase" &&
+        request.method === "POST"
+      ) {
         return purchase(request, env);
       }
 
@@ -43,67 +49,105 @@ export default {
         const session = await getSession(request, env);
 
         if (!session) {
-          return Response.redirect(new URL("/login", request.url), 302);
+          return Response.redirect(
+            new URL("/login", request.url),
+            302
+          );
         }
 
-        if (session.discord_id !== env.ADMIN_DISCORD_ID) {
-          return new Response("Brak dostępu.", {
-            status: 403,
-            headers: {
-              "Content-Type": "text/plain; charset=utf-8"
+        if (
+          session.discord_id !==
+          env.ADMIN_DISCORD_ID
+        ) {
+          return new Response(
+            "Brak dostępu.",
+            {
+              status: 403
             }
-          });
+          );
         }
 
-        return new Response(adminPage(), {
-          headers: {
-            "Content-Type": "text/html; charset=utf-8"
+        return new Response(
+          adminPage(),
+          {
+            headers: {
+              "Content-Type":
+                "text/html; charset=utf-8"
+            }
           }
-        });
+        );
       }
 
       // =========================
       // ADMIN API
       // =========================
 
-      if (url.pathname === "/api/admin/user" && request.method === "GET") {
+      if (
+        url.pathname === "/api/admin/user" &&
+        request.method === "GET"
+      ) {
         return adminUser(request, env);
       }
 
-      if (url.pathname === "/api/admin/balance" && request.method === "POST") {
+      if (
+        url.pathname === "/api/admin/balance" &&
+        request.method === "POST"
+      ) {
         return adminBalance(request, env);
       }
 
-      if (url.pathname === "/api/admin/transactions" && request.method === "GET") {
+      if (
+        url.pathname === "/api/admin/transactions" &&
+        request.method === "GET"
+      ) {
         return adminTransactions(request, env);
       }
 
-      if (url.pathname === "/api/admin/products" && request.method === "GET") {
+      if (
+        url.pathname === "/api/admin/products" &&
+        request.method === "GET"
+      ) {
         return adminProducts(env);
       }
 
-      if (url.pathname === "/api/admin/products" && request.method === "POST") {
+      if (
+        url.pathname === "/api/admin/products" &&
+        request.method === "POST"
+      ) {
         return adminCreateProduct(request, env);
       }
 
-      if (url.pathname === "/api/admin/products" && request.method === "PUT") {
+      if (
+        url.pathname === "/api/admin/products" &&
+        request.method === "PUT"
+      ) {
         return adminUpdateProduct(request, env);
       }
 
-      if (url.pathname === "/api/admin/products" && request.method === "DELETE") {
+      if (
+        url.pathname === "/api/admin/products" &&
+        request.method === "DELETE"
+      ) {
         return adminDeleteProduct(request, env);
       }
 
-      return new Response("Not Found", {
-        status: 404
-      });
+      return new Response(
+        "Not Found",
+        {
+          status: 404
+        }
+      );
 
     } catch (error) {
       console.error(error);
 
-      return json({
-        error: "Wewnętrzny błąd serwera."
-      }, 500);
+      return json(
+        {
+          error:
+            "Wewnętrzny błąd serwera."
+        },
+        500
+      );
     }
   }
 };
@@ -180,48 +224,40 @@ async function ensureSchema(env) {
     `)
   ]);
 
+  // ==========================================================
+  // DOMYŚLNY PRODUKT
+  // ==========================================================
+
   const count = await env.DB
-    .prepare("SELECT COUNT(*) AS count FROM products")
+    .prepare(
+      "SELECT COUNT(*) AS count FROM products"
+    )
     .first();
 
-  if (!count || Number(count.count) === 0) {
-    await env.DB.batch([
-      env.DB.prepare(`
-        INSERT INTO products
-        (name, description, price, type, duration_days, active, featured, sort_order)
-        VALUES (?, ?, ?, ?, ?, 1, 1, 1)
-      `).bind(
-        "Unban 1 dzień",
-        "Unban na 1 dzień.",
-        10,
-        "unban",
-        1
-      ),
-
-      env.DB.prepare(`
-        INSERT INTO products
-        (name, description, price, type, duration_days, active, featured, sort_order)
-        VALUES (?, ?, ?, ?, ?, 1, 0, 2)
-      `).bind(
-        "Unban 2 dni",
-        "Unban na 2 dni.",
-        20,
-        "unban",
-        2
-      ),
-
-      env.DB.prepare(`
-        INSERT INTO products
-        (name, description, price, type, duration_days, active, featured, sort_order)
-        VALUES (?, ?, ?, ?, ?, 1, 0, 3)
-      `).bind(
-        "Unban 3 dni",
-        "Unban na 3 dni.",
-        30,
-        "unban",
-        3
+  if (
+    !count ||
+    Number(count.count) === 0
+  ) {
+    await env.DB.prepare(`
+      INSERT INTO products
+      (
+        name,
+        description,
+        price,
+        type,
+        duration_days,
+        active,
+        featured,
+        sort_order
       )
-    ]);
+      VALUES (?, ?, ?, ?, ?, 1, 1, 1)
+    `).bind(
+      "Unban",
+      "Odblokowanie gracza. Wpisz UID gracza podczas zakupu.",
+      10,
+      "unban",
+      1
+    ).run();
   }
 }
 
@@ -231,79 +267,115 @@ async function ensureSchema(env) {
 // ============================================================
 
 function login(env) {
-  const clientId = env.DISCORD_CLIENT_ID;
-
   const redirectUri =
     "https://taproleplay.kosscirzynskikuba-4a4.workers.dev/callback";
 
-  const params = new URLSearchParams({
-    client_id: clientId,
-    response_type: "code",
-    redirect_uri: redirectUri,
-    scope: "identify"
-  });
+  const params =
+    new URLSearchParams({
+      client_id:
+        env.DISCORD_CLIENT_ID,
+
+      response_type:
+        "code",
+
+      redirect_uri:
+        redirectUri,
+
+      scope:
+        "identify"
+    });
 
   return Response.redirect(
-    "https://discord.com/oauth2/authorize?" + params.toString(),
+    "https://discord.com/oauth2/authorize?" +
+    params.toString(),
     302
   );
 }
 
 
 async function callback(request, env) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
+  const url =
+    new URL(request.url);
+
+  const code =
+    url.searchParams.get("code");
 
   if (!code) {
-    return new Response("Brak kodu OAuth.", {
-      status: 400
-    });
+    return new Response(
+      "Brak kodu OAuth.",
+      {
+        status: 400
+      }
+    );
   }
 
   const redirectUri =
     "https://taproleplay.kosscirzynskikuba-4a4.workers.dev/callback";
 
-  const tokenResponse = await fetch(
-    "https://discord.com/api/oauth2/token",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams({
-        client_id: env.DISCORD_CLIENT_ID,
-        client_secret: env.DISCORD_CLIENT_SECRET,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri
-      })
-    }
-  );
+  const tokenResponse =
+    await fetch(
+      "https://discord.com/api/oauth2/token",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/x-www-form-urlencoded"
+        },
+
+        body:
+          new URLSearchParams({
+            client_id:
+              env.DISCORD_CLIENT_ID,
+
+            client_secret:
+              env.DISCORD_CLIENT_SECRET,
+
+            grant_type:
+              "authorization_code",
+
+            code,
+
+            redirect_uri:
+              redirectUri
+          })
+      }
+    );
 
   if (!tokenResponse.ok) {
-    return new Response("Nie udało się zalogować przez Discord.", {
-      status: 400
-    });
+    return new Response(
+      "Nie udało się zalogować przez Discord.",
+      {
+        status: 400
+      }
+    );
   }
 
-  const tokenData = await tokenResponse.json();
+  const tokenData =
+    await tokenResponse.json();
 
-  const userResponse = await fetch(
-    `${DISCORD_API}/users/@me`,
-    {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`
+  const userResponse =
+    await fetch(
+      `${DISCORD_API}/users/@me`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${tokenData.access_token}`
+        }
       }
-    }
-  );
+    );
 
   if (!userResponse.ok) {
-    return new Response("Nie udało się pobrać użytkownika Discord.", {
-      status: 400
-    });
+    return new Response(
+      "Nie udało się pobrać użytkownika Discord.",
+      {
+        status: 400
+      }
+    );
   }
 
-  const discordUser = await userResponse.json();
+  const discordUser =
+    await userResponse.json();
 
   const username =
     discordUser.global_name ||
@@ -312,8 +384,13 @@ async function callback(request, env) {
 
   await env.DB.prepare(`
     INSERT INTO users
-      (discord_id, username, balance)
+    (
+      discord_id,
+      username,
+      balance
+    )
     VALUES (?, ?, 0)
+
     ON CONFLICT(discord_id)
     DO UPDATE SET
       username = excluded.username,
@@ -324,31 +401,48 @@ async function callback(request, env) {
   ).run();
 
   const session = {
-    discord_id: discordUser.id,
+    discord_id:
+      discordUser.id,
+
     username
   };
 
-  const cookie = await createSessionCookie(session, env);
+  const cookie =
+    await createSessionCookie(
+      session,
+      env
+    );
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: "/",
-      "Set-Cookie": cookie
+  return new Response(
+    null,
+    {
+      status: 302,
+
+      headers: {
+        Location: "/",
+
+        "Set-Cookie":
+          cookie
+      }
     }
-  });
+  );
 }
 
 
 function logout() {
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: "/",
-      "Set-Cookie":
-        "tap_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
+  return new Response(
+    null,
+    {
+      status: 302,
+
+      headers: {
+        Location: "/",
+
+        "Set-Cookie":
+          "tap_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
+      }
     }
-  });
+  );
 }
 
 
@@ -356,99 +450,163 @@ function logout() {
 // SESSION
 // ============================================================
 
-async function createSessionCookie(data, env) {
-  const payload = btoa(
-    JSON.stringify({
-      ...data,
-      exp: Date.now() + 1000 * 60 * 60 * 24 * 7
-    })
-  );
+async function createSessionCookie(
+  data,
+  env
+) {
+  const payload =
+    btoa(
+      JSON.stringify({
+        ...data,
 
-  const signature = await hmacSign(
-    payload,
-    env.SESSION_SECRET
-  );
+        exp:
+          Date.now() +
+          1000 * 60 * 60 * 24 * 7
+      })
+    );
 
-  return `tap_session=${payload}.${signature}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`;
+  const signature =
+    await hmacSign(
+      payload,
+      env.SESSION_SECRET
+    );
+
+  return (
+    "tap_session=" +
+    payload +
+    "." +
+    signature +
+    "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800"
+  );
 }
 
 
-async function getSession(request, env) {
-  const cookieHeader = request.headers.get("Cookie") || "";
+async function getSession(
+  request,
+  env
+) {
+  const cookieHeader =
+    request.headers.get("Cookie") ||
+    "";
 
-  const match = cookieHeader.match(
-    /(?:^|;\s*)tap_session=([^;]+)/
-  );
+  const match =
+    cookieHeader.match(
+      /(?:^|;\s*)tap_session=([^;]+)/
+    );
 
   if (!match) {
     return null;
   }
 
-  const value = match[1];
-  const parts = value.split(".");
+  const value =
+    match[1];
+
+  const parts =
+    value.split(".");
 
   if (parts.length !== 2) {
     return null;
   }
 
-  const payload = parts[0];
-  const signature = parts[1];
+  const payload =
+    parts[0];
 
-  const expected = await hmacSign(
-    payload,
-    env.SESSION_SECRET
-  );
+  const signature =
+    parts[1];
 
-  if (signature !== expected) {
+  const expected =
+    await hmacSign(
+      payload,
+      env.SESSION_SECRET
+    );
+
+  if (
+    signature !== expected
+  ) {
     return null;
   }
 
   try {
-    const data = JSON.parse(
-      atob(payload)
-    );
+    const data =
+      JSON.parse(
+        atob(payload)
+      );
 
-    if (!data.exp || Date.now() > data.exp) {
+    if (
+      !data.exp ||
+      Date.now() > data.exp
+    ) {
       return null;
     }
 
     return data;
+
   } catch {
     return null;
   }
 }
 
 
-async function hmacSign(value, secret) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    {
-      name: "HMAC",
-      hash: "SHA-256"
-    },
-    false,
-    ["sign"]
-  );
+async function hmacSign(
+  value,
+  secret
+) {
+  const key =
+    await crypto.subtle.importKey(
+      "raw",
 
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(value)
-  );
+      new TextEncoder().encode(
+        secret
+      ),
 
-  return [...new Uint8Array(signature)]
-    .map(b => b.toString(16).padStart(2, "0"))
+      {
+        name: "HMAC",
+        hash: "SHA-256"
+      },
+
+      false,
+
+      ["sign"]
+    );
+
+  const signature =
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+
+      new TextEncoder().encode(
+        value
+      )
+    );
+
+  return [
+    ...new Uint8Array(
+      signature
+    )
+  ]
+    .map(
+      b =>
+        b
+          .toString(16)
+          .padStart(2, "0")
+    )
     .join("");
 }
 
 
 // ============================================================
-// /ME
+// ME
 // ============================================================
 
-async function me(request, env) {
-  const session = await getSession(request, env);
+async function me(
+  request,
+  env
+) {
+  const session =
+    await getSession(
+      request,
+      env
+    );
 
   if (!session) {
     return json({
@@ -456,13 +614,17 @@ async function me(request, env) {
     });
   }
 
-  const user = await env.DB.prepare(`
-    SELECT discord_id, username, balance
-    FROM users
-    WHERE discord_id = ?
-  `).bind(
-    session.discord_id
-  ).first();
+  const user =
+    await env.DB.prepare(`
+      SELECT
+        discord_id,
+        username,
+        balance
+      FROM users
+      WHERE discord_id = ?
+    `).bind(
+      session.discord_id
+    ).first();
 
   if (!user) {
     return json({
@@ -472,11 +634,19 @@ async function me(request, env) {
 
   return json({
     loggedIn: true,
-    discord_id: user.discord_id,
-    username: user.username,
-    balance: user.balance,
+
+    discord_id:
+      user.discord_id,
+
+    username:
+      user.username,
+
+    balance:
+      user.balance,
+
     isAdmin:
-      user.discord_id === env.ADMIN_DISCORD_ID
+      user.discord_id ===
+      env.ADMIN_DISCORD_ID
   });
 }
 
@@ -486,21 +656,24 @@ async function me(request, env) {
 // ============================================================
 
 async function getProducts(env) {
-  const result = await env.DB.prepare(`
-    SELECT
-      id,
-      name,
-      description,
-      price,
-      type,
-      duration_days,
-      featured
-    FROM products
-    WHERE active = 1
-    ORDER BY sort_order ASC, id ASC
-  `).all();
+  const result =
+    await env.DB.prepare(`
+      SELECT
+        id,
+        name,
+        description,
+        price,
+        type,
+        duration_days,
+        featured
+      FROM products
+      WHERE active = 1
+      ORDER BY sort_order ASC, id ASC
+    `).all();
 
-  return json(result.results || []);
+  return json(
+    result.results || []
+  );
 }
 
 
@@ -508,91 +681,157 @@ async function getProducts(env) {
 // PURCHASE
 // ============================================================
 
-async function purchase(request, env) {
-  const session = await getSession(request, env);
+async function purchase(
+  request,
+  env
+) {
+  const session =
+    await getSession(
+      request,
+      env
+    );
 
   if (!session) {
-    return json({
-      error: "Musisz być zalogowany."
-    }, 401);
+    return json(
+      {
+        error:
+          "Musisz być zalogowany."
+      },
+      401
+    );
   }
 
   let body;
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
+
   } catch {
-    return json({
-      error: "Nieprawidłowe dane."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowe dane."
+      },
+      400
+    );
   }
 
-  const productId = Number(body.product_id);
-  const uid = Number(body.uid);
+  const productId =
+    Number(
+      body.product_id
+    );
 
-  if (!Number.isInteger(productId) || productId <= 0) {
-    return json({
-      error: "Nieprawidłowy produkt."
-    }, 400);
+  const uid =
+    Number(
+      body.uid
+    );
+
+  if (
+    !Number.isInteger(productId) ||
+    productId <= 0
+  ) {
+    return json(
+      {
+        error:
+          "Nieprawidłowy produkt."
+      },
+      400
+    );
   }
 
-  if (!Number.isInteger(uid) || uid <= 0) {
-    return json({
-      error: "Nieprawidłowy UID."
-    }, 400);
+  if (
+    !Number.isInteger(uid) ||
+    uid <= 0
+  ) {
+    return json(
+      {
+        error:
+          "Nieprawidłowy UID."
+      },
+      400
+    );
   }
 
-  const product = await env.DB.prepare(`
-    SELECT *
-    FROM products
-    WHERE id = ?
+  const product =
+    await env.DB.prepare(`
+      SELECT *
+      FROM products
+      WHERE id = ?
       AND active = 1
-  `).bind(
-    productId
-  ).first();
+    `).bind(
+      productId
+    ).first();
 
   if (!product) {
-    return json({
-      error: "Produkt nie istnieje."
-    }, 404);
+    return json(
+      {
+        error:
+          "Produkt nie istnieje."
+      },
+      404
+    );
   }
 
-  if (product.type !== "unban") {
-    return json({
-      error: "Ten produkt nie jest jeszcze dostępny."
-    }, 400);
+  if (
+    product.type !==
+    "unban"
+  ) {
+    return json(
+      {
+        error:
+          "Ten produkt nie jest dostępny."
+      },
+      400
+    );
   }
 
-  const price = Number(product.price);
+  const price =
+    Number(
+      product.price
+    );
 
-  const user = await env.DB.prepare(`
-    SELECT *
-    FROM users
-    WHERE discord_id = ?
-  `).bind(
-    session.discord_id
-  ).first();
+  const user =
+    await env.DB.prepare(`
+      SELECT *
+      FROM users
+      WHERE discord_id = ?
+    `).bind(
+      session.discord_id
+    ).first();
 
   if (!user) {
-    return json({
-      error: "Nie znaleziono konta."
-    }, 404);
+    return json(
+      {
+        error:
+          "Nie znaleziono konta."
+      },
+      404
+    );
   }
 
-  const balanceBefore = Number(user.balance);
+  const balanceBefore =
+    Number(
+      user.balance
+    );
 
-  if (balanceBefore < price) {
-    return json({
-      error: "Masz za mało środków."
-    }, 400);
+  if (
+    balanceBefore < price
+  ) {
+    return json(
+      {
+        error:
+          "Masz za mało środków."
+      },
+      400
+    );
   }
 
-  // Unikalny numer zakupu.
   const requestId =
     crypto.randomUUID();
 
   // ========================================================
-  // 1. ZAPISUJEMY ZAKUP JAKO PENDING
+  // ZAPIS ZAKUPU
   // ========================================================
 
   await env.DB.prepare(`
@@ -618,19 +857,18 @@ async function purchase(request, env) {
   ).run();
 
   // ========================================================
-  // 2. BOT DISCORD WYSYŁA:
-  //
-  //    .unban UID
-  //
+  // BOT DISCORD
   // ========================================================
 
   let discordResult;
 
   try {
-    discordResult = await sendUnbanCommandToDiscord(
-      env,
-      uid
-    );
+    discordResult =
+      await sendUnbanCommandToDiscord(
+        env,
+        uid
+      );
+
   } catch (error) {
     console.error(error);
 
@@ -645,12 +883,18 @@ async function purchase(request, env) {
       requestId
     ).run();
 
-    return json({
-      error: "Nie udało się wysłać komendy unban. Saldo nie zostało pobrane."
-    }, 500);
+    return json(
+      {
+        error:
+          "Bot Discord nie mógł wysłać komendy. Saldo nie zostało pobrane."
+      },
+      500
+    );
   }
 
-  if (!discordResult.success) {
+  if (
+    !discordResult.success
+  ) {
     await env.DB.prepare(`
       UPDATE purchases
       SET
@@ -658,22 +902,27 @@ async function purchase(request, env) {
         error_message = ?
       WHERE request_id = ?
     `).bind(
-      discordResult.error || "Discord API error",
+      discordResult.error ||
+        "Discord API error",
       requestId
     ).run();
 
-    return json({
-      error:
-        "Bot Discord nie mógł wysłać komendy. Saldo nie zostało pobrane."
-    }, 500);
+    return json(
+      {
+        error:
+          "Bot Discord nie mógł wysłać komendy. Saldo nie zostało pobrane."
+      },
+      500
+    );
   }
 
   // ========================================================
-  // 3. DOPIERO TERAZ ODEJMUJEMY ŚRODKI
+  // ODEJMOWANIE SALDA
   // ========================================================
 
   const balanceAfter =
-    balanceBefore - price;
+    balanceBefore -
+    price;
 
   await env.DB.batch([
     env.DB.prepare(`
@@ -718,50 +967,70 @@ async function purchase(request, env) {
 
   return json({
     success: true,
-    balance: balanceAfter,
+
+    balance:
+      balanceAfter,
+
     uid,
-    product: product.name
+
+    product:
+      product.name
   });
 }
 
 
 // ============================================================
-// DISCORD BOT -> SEND .unban UID
+// DISCORD BOT
 // ============================================================
 
-async function sendUnbanCommandToDiscord(env, uid) {
+async function sendUnbanCommandToDiscord(
+  env,
+  uid
+) {
   if (!env.DISCORD_BOT_TOKEN) {
     return {
       success: false,
-      error: "Brak DISCORD_BOT_TOKEN."
+      error:
+        "Brak DISCORD_BOT_TOKEN."
     };
   }
 
   if (!env.DISCORD_SHOP_CHANNEL_ID) {
     return {
       success: false,
-      error: "Brak DISCORD_SHOP_CHANNEL_ID."
+      error:
+        "Brak DISCORD_SHOP_CHANNEL_ID."
     };
   }
 
-  const message = `.unban ${uid}`;
+  const message =
+    `.unban ${uid}`;
 
-  const response = await fetch(
-    `${DISCORD_API}/channels/${env.DISCORD_SHOP_CHANNEL_ID}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bot ${env.DISCORD_BOT_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        content: message
-      })
-    }
-  );
+  const response =
+    await fetch(
+      `${DISCORD_API}/channels/${env.DISCORD_SHOP_CHANNEL_ID}/messages`,
+      {
+        method: "POST",
+
+        headers: {
+          "Authorization":
+            `Bot ${env.DISCORD_BOT_TOKEN}`,
+
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            content:
+              message
+          })
+      }
+    );
 
   if (!response.ok) {
-    const text = await response.text();
+    const text =
+      await response.text();
 
     console.error(
       "Discord API error:",
@@ -771,7 +1040,8 @@ async function sendUnbanCommandToDiscord(env, uid) {
 
     return {
       success: false,
-      error: `Discord API ${response.status}`
+      error:
+        `Discord API ${response.status}`
     };
   }
 
@@ -785,14 +1055,24 @@ async function sendUnbanCommandToDiscord(env, uid) {
 // ADMIN AUTH
 // ============================================================
 
-async function requireAdmin(request, env) {
-  const session = await getSession(request, env);
+async function requireAdmin(
+  request,
+  env
+) {
+  const session =
+    await getSession(
+      request,
+      env
+    );
 
   if (!session) {
     return null;
   }
 
-  if (session.discord_id !== env.ADMIN_DISCORD_ID) {
+  if (
+    session.discord_id !==
+    env.ADMIN_DISCORD_ID
+  ) {
     return null;
   }
 
@@ -804,39 +1084,66 @@ async function requireAdmin(request, env) {
 // ADMIN USER
 // ============================================================
 
-async function adminUser(request, env) {
-  const admin = await requireAdmin(request, env);
+async function adminUser(
+  request,
+  env
+) {
+  const admin =
+    await requireAdmin(
+      request,
+      env
+    );
 
   if (!admin) {
-    return json({
-      error: "Brak dostępu."
-    }, 403);
+    return json(
+      {
+        error:
+          "Brak dostępu."
+      },
+      403
+    );
   }
 
-  const url = new URL(request.url);
-  const id = url.searchParams.get("id");
+  const url =
+    new URL(request.url);
+
+  const id =
+    url.searchParams.get(
+      "id"
+    );
 
   if (!id) {
-    return json({
-      error: "Brak Discord ID."
-    }, 400);
+    return json(
+      {
+        error:
+          "Brak Discord ID."
+      },
+      400
+    );
   }
 
-  const user = await env.DB.prepare(`
-    SELECT
-      discord_id,
-      username,
-      balance,
-      created_at,
-      updated_at
-    FROM users
-    WHERE discord_id = ?
-  `).bind(id).first();
+  const user =
+    await env.DB.prepare(`
+      SELECT
+        discord_id,
+        username,
+        balance,
+        created_at,
+        updated_at
+      FROM users
+      WHERE discord_id = ?
+    `).bind(
+      id
+    ).first();
 
   if (!user) {
-    return json({
-      error: "Nie znaleziono użytkownika."
-    }, 404);
+    return json(
+      {
+        error:
+          "Nie znaleziono użytkownika."
+      },
+      404
+    );
   }
 
   return json(user);
@@ -847,39 +1154,78 @@ async function adminUser(request, env) {
 // ADMIN BALANCE
 // ============================================================
 
-async function adminBalance(request, env) {
-  const admin = await requireAdmin(request, env);
+async function adminBalance(
+  request,
+  env
+) {
+  const admin =
+    await requireAdmin(
+      request,
+      env
+    );
 
   if (!admin) {
-    return json({
-      error: "Brak dostępu."
-    }, 403);
+    return json(
+      {
+        error:
+          "Brak dostępu."
+      },
+      403
+    );
   }
 
   let body;
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
+
   } catch {
-    return json({
-      error: "Nieprawidłowe dane."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowe dane."
+      },
+      400
+    );
   }
 
-  const discordId = String(body.discord_id || "");
-  const type = String(body.type || "");
-  const amount = Number(body.amount);
+  const discordId =
+    String(
+      body.discord_id || ""
+    );
+
+  const type =
+    String(
+      body.type || ""
+    );
+
+  const amount =
+    Number(
+      body.amount
+    );
 
   if (!discordId) {
-    return json({
-      error: "Brak Discord ID."
-    }, 400);
+    return json(
+      {
+        error:
+          "Brak Discord ID."
+      },
+      400
+    );
   }
 
-  if (!["add", "remove"].includes(type)) {
-    return json({
-      error: "Nieprawidłowy typ operacji."
-    }, 400);
+  if (
+    !["add", "remove"]
+      .includes(type)
+  ) {
+    return json(
+      {
+        error:
+          "Nieprawidłowy typ operacji."
+      },
+      400
+    );
   }
 
   if (
@@ -887,37 +1233,52 @@ async function adminBalance(request, env) {
     amount <= 0 ||
     amount > 1000000
   ) {
-    return json({
-      error: "Nieprawidłowa kwota."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowa kwota."
+      },
+      400
+    );
   }
 
-  const user = await env.DB.prepare(`
-    SELECT *
-    FROM users
-    WHERE discord_id = ?
-  `).bind(discordId).first();
+  const user =
+    await env.DB.prepare(`
+      SELECT *
+      FROM users
+      WHERE discord_id = ?
+    `).bind(
+      discordId
+    ).first();
 
   if (!user) {
-    return json({
-      error: "Nie znaleziono użytkownika."
-    }, 404);
+    return json(
+      {
+        error:
+          "Nie znaleziono użytkownika."
+      },
+      404
+    );
   }
 
-  const before = Number(user.balance);
+  const before =
+    Number(
+      user.balance
+    );
 
-  let after;
-
-  if (type === "add") {
-    after = before + amount;
-  } else {
-    after = before - amount;
-  }
+  const after =
+    type === "add"
+      ? before + amount
+      : before - amount;
 
   if (after < 0) {
-    return json({
-      error: "Saldo nie może być ujemne."
-    }, 400);
+    return json(
+      {
+        error:
+          "Saldo nie może być ujemne."
+      },
+      400
+    );
   }
 
   const transactionAmount =
@@ -950,12 +1311,16 @@ async function adminBalance(request, env) {
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(
       discordId,
+
       type === "add"
         ? "admin_add"
         : "admin_remove",
+
       transactionAmount,
+
       before,
       after,
+
       admin.discord_id
     )
   ]);
@@ -971,41 +1336,66 @@ async function adminBalance(request, env) {
 // ADMIN TRANSACTIONS
 // ============================================================
 
-async function adminTransactions(request, env) {
-  const admin = await requireAdmin(request, env);
+async function adminTransactions(
+  request,
+  env
+) {
+  const admin =
+    await requireAdmin(
+      request,
+      env
+    );
 
   if (!admin) {
-    return json({
-      error: "Brak dostępu."
-    }, 403);
+    return json(
+      {
+        error:
+          "Brak dostępu."
+      },
+      403
+    );
   }
 
-  const url = new URL(request.url);
-  const discordId = url.searchParams.get("id");
+  const url =
+    new URL(request.url);
+
+  const discordId =
+    url.searchParams.get(
+      "id"
+    );
 
   if (!discordId) {
-    return json({
-      error: "Brak Discord ID."
-    }, 400);
+    return json(
+      {
+        error:
+          "Brak Discord ID."
+      },
+      400
+    );
   }
 
-  const result = await env.DB.prepare(`
-    SELECT
-      id,
-      discord_id,
-      type,
-      amount,
-      balance_before,
-      balance_after,
-      admin_discord_id,
-      created_at
-    FROM transactions
-    WHERE discord_id = ?
-    ORDER BY id DESC
-    LIMIT 100
-  `).bind(discordId).all();
+  const result =
+    await env.DB.prepare(`
+      SELECT
+        id,
+        discord_id,
+        type,
+        amount,
+        balance_before,
+        balance_after,
+        admin_discord_id,
+        created_at
+      FROM transactions
+      WHERE discord_id = ?
+      ORDER BY id DESC
+      LIMIT 100
+    `).bind(
+      discordId
+    ).all();
 
-  return json(result.results || []);
+  return json(
+    result.results || []
+  );
 }
 
 
@@ -1013,44 +1403,84 @@ async function adminTransactions(request, env) {
 // ADMIN PRODUCTS
 // ============================================================
 
-async function adminProducts(env) {
-  const result = await env.DB.prepare(`
-    SELECT *
-    FROM products
-    ORDER BY sort_order ASC, id ASC
-  `).all();
+async function adminProducts(
+  env
+) {
+  const result =
+    await env.DB.prepare(`
+      SELECT *
+      FROM products
+      ORDER BY sort_order ASC, id ASC
+    `).all();
 
-  return json(result.results || []);
+  return json(
+    result.results || []
+  );
 }
 
 
-async function adminCreateProduct(request, env) {
-  const admin = await requireAdmin(request, env);
+async function adminCreateProduct(
+  request,
+  env
+) {
+  const admin =
+    await requireAdmin(
+      request,
+      env
+    );
 
   if (!admin) {
-    return json({
-      error: "Brak dostępu."
-    }, 403);
+    return json(
+      {
+        error:
+          "Brak dostępu."
+      },
+      403
+    );
   }
 
   let body;
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
+
   } catch {
-    return json({
-      error: "Nieprawidłowe dane."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowe dane."
+      },
+      400
+    );
   }
 
-  const name = String(body.name || "").trim();
-  const description = String(body.description || "");
-  const price = Number(body.price);
-  const type = String(body.type || "standard");
+  const name =
+    String(
+      body.name || ""
+    ).trim();
+
+  const description =
+    String(
+      body.description || ""
+    );
+
+  const price =
+    Number(
+      body.price
+    );
+
+  const type =
+    String(
+      body.type || "standard"
+    );
+
   const durationDays =
     body.duration_days == null
       ? null
-      : Number(body.duration_days);
+      : Number(
+          body.duration_days
+        );
 
   const active =
     body.active === false
@@ -1063,14 +1493,24 @@ async function adminCreateProduct(request, env) {
       : 0;
 
   const sortOrder =
-    Number.isInteger(Number(body.sort_order))
-      ? Number(body.sort_order)
+    Number.isInteger(
+      Number(
+        body.sort_order
+      )
+    )
+      ? Number(
+          body.sort_order
+        )
       : 0;
 
   if (!name) {
-    return json({
-      error: "Nazwa produktu jest wymagana."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nazwa produktu jest wymagana."
+      },
+      400
+    );
   }
 
   if (
@@ -1078,99 +1518,150 @@ async function adminCreateProduct(request, env) {
     price < 0 ||
     price > 1000000
   ) {
-    return json({
-      error: "Nieprawidłowa cena."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowa cena."
+      },
+      400
+    );
   }
 
-  const result = await env.DB.prepare(`
-    INSERT INTO products
-    (
+  const result =
+    await env.DB.prepare(`
+      INSERT INTO products
+      (
+        name,
+        description,
+        price,
+        type,
+        duration_days,
+        active,
+        featured,
+        sort_order
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
       name,
       description,
       price,
       type,
-      duration_days,
+      durationDays,
       active,
       featured,
-      sort_order
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    name,
-    description,
-    price,
-    type,
-    durationDays,
-    active,
-    featured,
-    sortOrder
-  ).run();
+      sortOrder
+    ).run();
 
   return json({
     success: true,
-    id: result.meta.last_row_id
+
+    id:
+      result.meta.last_row_id
   });
 }
 
 
-async function adminUpdateProduct(request, env) {
-  const admin = await requireAdmin(request, env);
+async function adminUpdateProduct(
+  request,
+  env
+) {
+  const admin =
+    await requireAdmin(
+      request,
+      env
+    );
 
   if (!admin) {
-    return json({
-      error: "Brak dostępu."
-    }, 403);
+    return json(
+      {
+        error:
+          "Brak dostępu."
+      },
+      403
+    );
   }
 
   let body;
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
+
   } catch {
-    return json({
-      error: "Nieprawidłowe dane."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowe dane."
+      },
+      400
+    );
   }
 
-  const id = Number(body.id);
+  const id =
+    Number(
+      body.id
+    );
 
-  if (!Number.isInteger(id) || id <= 0) {
-    return json({
-      error: "Nieprawidłowe ID produktu."
-    }, 400);
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+    return json(
+      {
+        error:
+          "Nieprawidłowe ID produktu."
+      },
+      400
+    );
   }
 
-  const existing = await env.DB.prepare(`
-    SELECT *
-    FROM products
-    WHERE id = ?
-  `).bind(id).first();
+  const existing =
+    await env.DB.prepare(`
+      SELECT *
+      FROM products
+      WHERE id = ?
+    `).bind(
+      id
+    ).first();
 
   if (!existing) {
-    return json({
-      error: "Produkt nie istnieje."
-    }, 404);
+    return json(
+      {
+        error:
+          "Produkt nie istnieje."
+      },
+      404
+    );
   }
 
   const name =
     body.name !== undefined
-      ? String(body.name).trim()
+      ? String(
+          body.name
+        ).trim()
       : existing.name;
 
   const description =
     body.description !== undefined
-      ? String(body.description)
+      ? String(
+          body.description
+        )
       : existing.description;
 
   const price =
     body.price !== undefined
-      ? Number(body.price)
-      : Number(existing.price);
+      ? Number(
+          body.price
+        )
+      : Number(
+          existing.price
+        );
 
   const type =
     body.type !== undefined
-      ? String(body.type)
+      ? String(
+          body.type
+        )
       : existing.type;
 
   const durationDays =
@@ -1178,29 +1669,45 @@ async function adminUpdateProduct(request, env) {
       ? (
           body.duration_days === null
             ? null
-            : Number(body.duration_days)
+            : Number(
+                body.duration_days
+              )
         )
       : existing.duration_days;
 
   const active =
     body.active !== undefined
-      ? (body.active ? 1 : 0)
+      ? (
+          body.active
+            ? 1
+            : 0
+        )
       : existing.active;
 
   const featured =
     body.featured !== undefined
-      ? (body.featured ? 1 : 0)
+      ? (
+          body.featured
+            ? 1
+            : 0
+        )
       : existing.featured;
 
   const sortOrder =
     body.sort_order !== undefined
-      ? Number(body.sort_order)
+      ? Number(
+          body.sort_order
+        )
       : existing.sort_order;
 
   if (!name) {
-    return json({
-      error: "Nazwa produktu jest wymagana."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nazwa produktu jest wymagana."
+      },
+      400
+    );
   }
 
   if (
@@ -1208,9 +1715,13 @@ async function adminUpdateProduct(request, env) {
     price < 0 ||
     price > 1000000
   ) {
-    return json({
-      error: "Nieprawidłowa cena."
-    }, 400);
+    return json(
+      {
+        error:
+          "Nieprawidłowa cena."
+      },
+      400
+    );
   }
 
   await env.DB.prepare(`
@@ -1244,22 +1755,47 @@ async function adminUpdateProduct(request, env) {
 }
 
 
-async function adminDeleteProduct(request, env) {
-  const admin = await requireAdmin(request, env);
+async function adminDeleteProduct(
+  request,
+  env
+) {
+  const admin =
+    await requireAdmin(
+      request,
+      env
+    );
 
   if (!admin) {
-    return json({
-      error: "Brak dostępu."
-    }, 403);
+    return json(
+      {
+        error:
+          "Brak dostępu."
+      },
+      403
+    );
   }
 
-  const url = new URL(request.url);
-  const id = Number(url.searchParams.get("id"));
+  const url =
+    new URL(request.url);
 
-  if (!Number.isInteger(id) || id <= 0) {
-    return json({
-      error: "Nieprawidłowe ID produktu."
-    }, 400);
+  const id =
+    Number(
+      url.searchParams.get(
+        "id"
+      )
+    );
+
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+    return json(
+      {
+        error:
+          "Nieprawidłowe ID produktu."
+      },
+      400
+    );
   }
 
   await env.DB.prepare(`
@@ -1268,7 +1804,9 @@ async function adminDeleteProduct(request, env) {
       active = 0,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).bind(id).run();
+  `).bind(
+    id
+  ).run();
 
   return json({
     success: true
@@ -1283,12 +1821,22 @@ async function adminDeleteProduct(request, env) {
 function adminPage() {
   return `<!DOCTYPE html>
 <html lang="pl">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TAP Roleplay — Admin</title>
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+>
+
+<title>
+TAP Roleplay — Admin
+</title>
 
 <style>
+
 * {
   box-sizing: border-box;
 }
@@ -1373,39 +1921,53 @@ td {
   color: #999;
   font-size: 13px;
 }
+
 </style>
+
 </head>
 
 <body>
 
 <header>
-  <div class="logo">TAP ROLEPLAY — ADMIN</div>
+
+<div class="logo">
+TAP ROLEPLAY — ADMIN
+</div>
+
 </header>
 
 <main>
 
 <div class="card">
-  <h1>Gracz</h1>
 
-  <input
-    id="discordId"
-    placeholder="Discord ID gracza"
-  >
+<h1>
+Gracz
+</h1>
 
-  <button onclick="loadUser()">
-    Szukaj gracza
-  </button>
+<input
+  id="discordId"
+  placeholder="Discord ID gracza"
+>
 
-  <div id="user"></div>
+<button onclick="loadUser()">
+Szukaj gracza
+</button>
+
+<div id="user"></div>
+
 </div>
 
 
 <div class="card">
-  <h1>Produkty</h1>
 
-  <div id="products">
-    Ładowanie...
-  </div>
+<h1>
+Produkty
+</h1>
+
+<div id="products">
+Ładowanie...
+</div>
+
 </div>
 
 </main>
@@ -1413,11 +1975,19 @@ td {
 <script>
 
 async function loadUser() {
+
   const id =
-    document.getElementById("discordId").value.trim();
+    document
+      .getElementById("discordId")
+      .value
+      .trim();
 
   if (!id) {
-    alert("Podaj Discord ID.");
+
+    alert(
+      "Podaj Discord ID."
+    );
+
     return;
   }
 
@@ -1431,80 +2001,143 @@ async function loadUser() {
     await response.json();
 
   if (!response.ok) {
-    alert(data.error || "Błąd.");
+
+    alert(
+      data.error ||
+      "Błąd."
+    );
+
     return;
   }
 
-  document.getElementById("user").innerHTML =
+  document
+    .getElementById("user")
+    .innerHTML =
 
-    "<p><strong>" +
-    escapeHtml(data.username) +
-    "</strong></p>" +
+      "<p><strong>" +
+      escapeHtml(
+        data.username
+      ) +
+      "</strong></p>" +
 
-    "<p class='small'>" +
-    escapeHtml(data.discord_id) +
-    "</p>" +
+      "<p class='small'>" +
+      escapeHtml(
+        data.discord_id
+      ) +
+      "</p>" +
 
-    "<h2>Saldo: " +
-    Number(data.balance) +
-    " PLN</h2>" +
+      "<h2>Saldo: " +
+      Number(
+        data.balance
+      ) +
+      " PLN</h2>" +
 
-    "<input id='amount' type='number' min='1' placeholder='Kwota'>" +
+      "<input " +
+      "id='amount' " +
+      "type='number' " +
+      "min='1' " +
+      "placeholder='Kwota'>" +
 
-    "<button onclick='changeBalance(\"add\")'>" +
-    "Dodaj" +
-    "</button>" +
+      "<button " +
+      "onclick='changeBalance(\"add\")'>" +
+      "Dodaj" +
+      "</button>" +
 
-    "<button onclick='changeBalance(\"remove\")'>" +
-    "Usuń" +
-    "</button>" +
+      "<button " +
+      "onclick='changeBalance(\"remove\")'>" +
+      "Usuń" +
+      "</button>" +
 
-    "<div id='transactions'></div>";
+      "<div id='transactions'>" +
+      "</div>";
 
   loadTransactions(id);
 }
 
 
-async function changeBalance(type) {
+async function changeBalance(
+  type
+) {
+
   const discordId =
-    document.getElementById("discordId").value.trim();
+    document
+      .getElementById(
+        "discordId"
+      )
+      .value
+      .trim();
 
   const amount =
-    Number(document.getElementById("amount").value);
+    Number(
+      document
+        .getElementById(
+          "amount"
+        )
+        .value
+    );
 
-  if (!amount || amount <= 0) {
-    alert("Podaj kwotę.");
+  if (
+    !amount ||
+    amount <= 0
+  ) {
+
+    alert(
+      "Podaj kwotę."
+    );
+
     return;
   }
 
   const response =
-    await fetch("/api/admin/balance", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        discord_id: discordId,
-        type,
-        amount
-      })
-    });
+    await fetch(
+      "/api/admin/balance",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            discord_id:
+              discordId,
+
+            type,
+
+            amount
+          })
+      }
+    );
 
   const data =
     await response.json();
 
   if (!response.ok) {
-    alert(data.error || "Błąd.");
+
+    alert(
+      data.error ||
+      "Błąd."
+    );
+
     return;
   }
 
-  document.getElementById("amount").value = "";
+  document
+    .getElementById(
+      "amount"
+    )
+    .value = "";
 
   loadUser();
 }
 
 
-async function loadTransactions(id) {
+async function loadTransactions(
+  id
+) {
+
   const response =
     await fetch(
       "/api/admin/transactions?id=" +
@@ -1529,105 +2162,189 @@ async function loadTransactions(id) {
     "<th>Data</th>" +
     "</tr>";
 
-  for (const row of data) {
+  for (
+    const row of data
+  ) {
+
     html +=
       "<tr>" +
-      "<td>" + escapeHtml(row.type) + "</td>" +
-      "<td>" + Number(row.amount) + "</td>" +
-      "<td>" + Number(row.balance_before) + "</td>" +
-      "<td>" + Number(row.balance_after) + "</td>" +
-      "<td>" + escapeHtml(row.created_at) + "</td>" +
+
+      "<td>" +
+      escapeHtml(
+        row.type
+      ) +
+      "</td>" +
+
+      "<td>" +
+      Number(
+        row.amount
+      ) +
+      "</td>" +
+
+      "<td>" +
+      Number(
+        row.balance_before
+      ) +
+      "</td>" +
+
+      "<td>" +
+      Number(
+        row.balance_after
+      ) +
+      "</td>" +
+
+      "<td>" +
+      escapeHtml(
+        row.created_at
+      ) +
+      "</td>" +
+
       "</tr>";
   }
 
-  html += "</table>";
+  html +=
+    "</table>";
 
-  document.getElementById("transactions").innerHTML =
-    html;
+  document
+    .getElementById(
+      "transactions"
+    )
+    .innerHTML = html;
 }
 
 
 async function loadProducts() {
+
   const response =
-    await fetch("/api/admin/products");
+    await fetch(
+      "/api/admin/products"
+    );
 
   const products =
     await response.json();
 
   if (!response.ok) {
-    document.getElementById("products").textContent =
-      products.error || "Błąd.";
+
+    document
+      .getElementById(
+        "products"
+      )
+      .textContent =
+        products.error ||
+        "Błąd.";
+
     return;
   }
 
   let html = "";
 
-  for (const product of products) {
+  for (
+    const product of products
+  ) {
+
     html +=
+
       "<div class='card'>" +
 
       "<h3>" +
-      escapeHtml(product.name) +
+      escapeHtml(
+        product.name
+      ) +
       "</h3>" +
 
       "<p>" +
-      escapeHtml(product.description || "") +
+      escapeHtml(
+        product.description ||
+        ""
+      ) +
       "</p>" +
 
       "<p>Cena: <strong>" +
-      Number(product.price) +
+      Number(
+        product.price
+      ) +
       " PLN</strong></p>" +
 
       "<p>Typ: " +
-      escapeHtml(product.type) +
-      "</p>" +
-
-      "<p>Dni: " +
-      (product.duration_days ?? "-") +
+      escapeHtml(
+        product.type
+      ) +
       "</p>" +
 
       "<p>Aktywny: " +
-      (product.active ? "TAK" : "NIE") +
+      (
+        product.active
+          ? "TAK"
+          : "NIE"
+      ) +
       "</p>" +
 
-      "<button onclick='toggleProduct(" +
-      Number(product.id) +
+      "<button " +
+      "onclick='toggleProduct(" +
+      Number(
+        product.id
+      ) +
       "," +
-      (product.active ? "false" : "true") +
+      (
+        product.active
+          ? "false"
+          : "true"
+      ) +
       ")'>" +
 
-      (product.active
-        ? "Wyłącz"
-        : "Włącz") +
+      (
+        product.active
+          ? "Wyłącz"
+          : "Włącz"
+      ) +
 
       "</button>" +
 
       "</div>";
   }
 
-  document.getElementById("products").innerHTML =
-    html;
+  document
+    .getElementById(
+      "products"
+    )
+    .innerHTML = html;
 }
 
 
-async function toggleProduct(id, active) {
+async function toggleProduct(
+  id,
+  active
+) {
+
   const response =
-    await fetch("/api/admin/products", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        id,
-        active
-      })
-    });
+    await fetch(
+      "/api/admin/products",
+      {
+        method: "PUT",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            id,
+            active
+          })
+      }
+    );
 
   const data =
     await response.json();
 
   if (!response.ok) {
-    alert(data.error || "Błąd.");
+
+    alert(
+      data.error ||
+      "Błąd."
+    );
+
     return;
   }
 
@@ -1635,36 +2352,63 @@ async function toggleProduct(id, active) {
 }
 
 
-function escapeHtml(value) {
+function escapeHtml(
+  value
+) {
+
   return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
 }
+
 
 loadProducts();
 
 </script>
 
 </body>
+
 </html>`;
 }
 
 
 // ============================================================
-// JSON
+// JSON RESPONSE
 // ============================================================
 
-function json(data, status = 200) {
+function json(
+  data,
+  status = 200
+) {
   return new Response(
     JSON.stringify(data),
     {
       status,
+
       headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store"
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        "Cache-Control":
+          "no-store"
       }
     }
   );
