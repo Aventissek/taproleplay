@@ -20,18 +20,20 @@
         }
 
         header {
-            height: 75px;
+            min-height: 75px;
             background: #111111;
             border-bottom: 1px solid #252525;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 7%;
+            padding: 12px 7%;
+            gap: 20px;
         }
 
         .logo {
             font-size: 25px;
             font-weight: bold;
+            white-space: nowrap;
         }
 
         .logo span {
@@ -53,7 +55,15 @@
             color: #f97316;
         }
 
-        .discord-btn {
+        .account-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .discord-btn,
+        .admin-btn {
+            display: inline-block;
             background: #f97316;
             color: white;
             border: none;
@@ -61,10 +71,35 @@
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
+            text-decoration: none;
         }
 
-        .discord-btn:hover {
+        .discord-btn:hover,
+        .admin-btn:hover {
             background: #ea580c;
+        }
+
+        .admin-btn {
+            background: #7c3aed;
+        }
+
+        .admin-btn:hover {
+            background: #6d28d9;
+        }
+
+        .account-info {
+            display: none;
+            text-align: right;
+        }
+
+        .account-username {
+            font-weight: bold;
+        }
+
+        .account-balance {
+            color: #f97316;
+            font-size: 13px;
+            margin-top: 3px;
         }
 
         .hero {
@@ -194,11 +229,23 @@
             color: #666;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 850px) {
             header {
-                padding: 0 20px;
+                flex-wrap: wrap;
+                justify-content: center;
             }
 
+            .account-area {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .account-info {
+                text-align: left;
+            }
+        }
+
+        @media (max-width: 600px) {
             nav {
                 display: none;
             }
@@ -213,6 +260,7 @@
 <body>
 
 <header>
+
     <div class="logo">
         TAP<span>ROLEPLAY</span>
     </div>
@@ -223,12 +271,37 @@
         <a href="#contact">Kontakt</a>
     </nav>
 
-<a href="/login" class="discord-btn">
-    Zaloguj przez Discord
-</a>
+    <div class="account-area">
+
+        <div class="account-info" id="account-info">
+            <div class="account-username" id="discord-username">
+                —
+            </div>
+
+            <div class="account-balance" id="discord-balance">
+                Saldo: 0 PLN
+            </div>
+        </div>
+
+        <a href="/login" class="discord-btn" id="discord-button">
+            Zaloguj przez Discord
+        </a>
+
+        <a
+            href="/admin"
+            class="admin-btn"
+            id="admin-button"
+            style="display: none;"
+        >
+            PANEL ADMINA
+        </a>
+
+    </div>
+
 </header>
 
 <section class="hero" id="home">
+
     <div class="hero-content">
 
         <h1>
@@ -245,6 +318,7 @@
         </a>
 
     </div>
+
 </section>
 
 <section class="section" id="shop">
@@ -257,6 +331,7 @@
     <div class="products">
 
         <div class="product">
+
             <div class="product-icon">💰</div>
 
             <h3>Pakiet pieniędzy</h3>
@@ -272,9 +347,11 @@
             <button class="buy-btn">
                 KUP TERAZ
             </button>
+
         </div>
 
         <div class="product">
+
             <div class="product-icon">🚗</div>
 
             <h3>Pakiet pojazdów</h3>
@@ -290,9 +367,11 @@
             <button class="buy-btn">
                 KUP TERAZ
             </button>
+
         </div>
 
         <div class="product">
+
             <div class="product-icon">👑</div>
 
             <h3>VIP</h3>
@@ -308,6 +387,7 @@
             <button class="buy-btn">
                 KUP TERAZ
             </button>
+
         </div>
 
     </div>
@@ -320,19 +400,36 @@
 
 <script>
 fetch("/me")
-  .then(response => response.json())
-  .then(data => {
-    if (data.loggedIn) {
-      const button = document.querySelector(".discord-btn");
+    .then(response => response.json())
+    .then(data => {
 
-      if (button) {
-        button.textContent = "Zalogowano przez Discord";
-        button.removeAttribute("href");
-        button.style.cursor = "default";
-      }
-    }
-  });
+        const button = document.getElementById("discord-button");
+        const accountInfo = document.getElementById("account-info");
+        const username = document.getElementById("discord-username");
+        const balance = document.getElementById("discord-balance");
+        const adminButton = document.getElementById("admin-button");
+
+        if (data.loggedIn) {
+
+            button.textContent = "Zalogowano przez Discord";
+            button.removeAttribute("href");
+            button.style.cursor = "default";
+
+            accountInfo.style.display = "block";
+
+            username.textContent = data.username;
+            balance.textContent = "Saldo: " + data.balance + " PLN";
+
+            if (data.isAdmin === true) {
+                adminButton.style.display = "inline-block";
+            }
+        }
+
+    })
+    .catch(error => {
+        console.error("Błąd pobierania danych użytkownika:", error);
+    });
 </script>
-    
+
 </body>
 </html>
