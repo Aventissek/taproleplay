@@ -32,11 +32,13 @@ export default {
           );
         }
 
-        const redirectUri = `${url.origin}/callback`;
+        const redirectUri =
+          `${url.origin}/callback`;
 
-        const discordUrl = new URL(
-          "https://discord.com/oauth2/authorize"
-        );
+        const discordUrl =
+          new URL(
+            "https://discord.com/oauth2/authorize"
+          );
 
         discordUrl.searchParams.set(
           "client_id",
@@ -87,7 +89,10 @@ export default {
         url.pathname === "/logout" &&
         request.method === "GET"
       ) {
-        return await logout(request, env);
+        return await logout(
+          request,
+          env
+        );
       }
 
       // ==========================================
@@ -100,10 +105,11 @@ export default {
       ) {
         await ensureSchema(env);
 
-        const user = await getCurrentUser(
-          request,
-          env
-        );
+        const user =
+          await getCurrentUser(
+            request,
+            env
+          );
 
         if (!user) {
           return json({
@@ -132,24 +138,25 @@ export default {
       ) {
         await ensureSchema(env);
 
-        const result = await env.DB.prepare(`
-          SELECT
-            id,
-            name,
-            description,
-            price,
-            type,
-            duration_days,
-            active,
-            featured,
-            sort_order
-          FROM products
-          WHERE active = 1
-          ORDER BY
-            featured DESC,
-            sort_order ASC,
-            id ASC
-        `).all();
+        const result =
+          await env.DB.prepare(`
+            SELECT
+              id,
+              name,
+              description,
+              price,
+              type,
+              duration_days,
+              active,
+              featured,
+              sort_order
+            FROM products
+            WHERE active = 1
+            ORDER BY
+              featured DESC,
+              sort_order ASC,
+              id ASC
+          `).all();
 
         return json({
           products: result.results || []
@@ -179,10 +186,11 @@ export default {
       ) {
         await ensureSchema(env);
 
-        const admin = await requireAdmin(
-          request,
-          env
-        );
+        const admin =
+          await requireAdmin(
+            request,
+            env
+          );
 
         if (!admin.ok) {
           return admin.response;
@@ -439,7 +447,9 @@ async function handleDiscordCallback(
   await ensureSchema(env);
 
   const username =
-    getDiscordUsername(discordUser);
+    getDiscordUsername(
+      discordUser
+    );
 
   await env.DB.prepare(`
     INSERT INTO users (
@@ -618,13 +628,6 @@ async function ensureSchema(env) {
   // ==========================================
   // MIGRACJA PRODUCTS
   // ==========================================
-  // To jest najważniejsza poprawka.
-  //
-  // CREATE TABLE IF NOT EXISTS nie dodaje
-  // brakujących kolumn do istniejącej tabeli.
-  //
-  // Sprawdzamy więc stare products i dodajemy
-  // brakujące kolumny.
 
   const productColumns =
     await env.DB.prepare(
@@ -1035,7 +1038,7 @@ async function purchaseProduct(
     crypto.randomUUID();
 
   // ==========================================
-  // UNBAN -> DISCORD
+  // UNBAN -> DISCORD WEBHOOK
   // ==========================================
 
   if (
@@ -1048,7 +1051,7 @@ async function purchaseProduct(
       );
     } catch (error) {
       console.error(
-        "UNBAN DISCORD ERROR:",
+        "UNBAN WEBHOOK ERROR:",
         error
       );
 
@@ -1178,7 +1181,7 @@ async function purchaseProduct(
 
 
 // ==================================================
-// DISCORD BOT
+// DISCORD WEBHOOK
 // ==================================================
 
 async function sendUnbanCommandToDiscord(
@@ -1186,34 +1189,32 @@ async function sendUnbanCommandToDiscord(
   uid
 ) {
   if (
-    !env.DISCORD_BOT_TOKEN
+    !env.DISCORD_UNBAN_WEBHOOK_URL
   ) {
     throw new Error(
-      "Brak DISCORD_BOT_TOKEN."
+      "Brak DISCORD_UNBAN_WEBHOOK_URL."
     );
   }
 
-  if (
-    !env.DISCORD_SHOP_CHANNEL_ID
-  ) {
-    throw new Error(
-      "Brak DISCORD_SHOP_CHANNEL_ID."
-    );
-  }
-
-  const channelId =
+  const webhookUrl =
     String(
-      env.DISCORD_SHOP_CHANNEL_ID
+      env.DISCORD_UNBAN_WEBHOOK_URL
     );
+
+  // ?wait=true powoduje, że Discord
+  // zwróci odpowiedź po utworzeniu wiadomości.
+
+  const separator =
+    webhookUrl.includes("?")
+      ? "&"
+      : "?";
 
   const response =
     await fetch(
-      `https://discord.com/api/v10/channels/${channelId}/messages`,
+      `${webhookUrl}${separator}wait=true`,
       {
         method: "POST",
         headers: {
-          "Authorization":
-            `Bot ${env.DISCORD_BOT_TOKEN}`,
           "Content-Type":
             "application/json"
         },
@@ -1230,7 +1231,7 @@ async function sendUnbanCommandToDiscord(
 
   if (!response.ok) {
     throw new Error(
-      `Discord ${response.status}: ${responseText}`
+      `Discord webhook ${response.status}: ${responseText}`
     );
   }
 }
@@ -1637,11 +1638,8 @@ async function healthCheck(env) {
     session_secret: Boolean(
       env.SESSION_SECRET
     ),
-    discord_bot_token: Boolean(
-      env.DISCORD_BOT_TOKEN
-    ),
-    discord_shop_channel: Boolean(
-      env.DISCORD_SHOP_CHANNEL_ID
+    discord_unban_webhook: Boolean(
+      env.DISCORD_UNBAN_WEBHOOK_URL
     ),
     admin_id: Boolean(
       env.ADMIN_DISCORD_ID
