@@ -38,6 +38,50 @@ async function verify(value, signature, secret) {
   );
 }
 
+async function getSession(request, env) {
+  const cookie = request.headers.get("Cookie") || "";
+  const match = cookie.match(/tap_session=([^;]+)/);
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    const parts = match[1].split(".");
+
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const encodedData = parts[0];
+    const signature = parts[1];
+    const sessionData = atob(encodedData);
+
+    const valid = await verify(
+      sessionData,
+      signature,
+      env.SESSION_SECRET
+    );
+
+    if (!valid) {
+      return null;
+    }
+
+    const separator = sessionData.indexOf(":");
+
+    if (separator === -1) {
+      return null;
+    }
+
+    return {
+      discordId: sessionData.slice(0, separator),
+      username: sessionData.slice(separator + 1)
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -58,7 +102,7 @@ export default {
       return Response.redirect(discordUrl, 302);
     }
 
-    // POWRÓT Z DISCORDA
+    // CALLBACK DISCORD
     if (url.pathname === "/callback") {
       const code = url.searchParams.get("code");
 
@@ -111,6 +155,18 @@ export default {
         });
       }
 
+      // Dodaj użytkownika do D1, jeśli jeszcze go nie ma
+      await env.DB.prepare(`
+        INSERT INTO users (discord_id, username)
+        VALUES (?, ?)
+        ON CONFLICT(discord_id)
+        DO UPDATE SET
+          username = excluded.username,
+          updated_at = CURRENT_TIMESTAMP
+      `)
+        .bind(user.id, user.username)
+        .run();
+
       const sessionData = `${user.id}:${user.username}`;
 
       const signature = await sign(
@@ -131,15 +187,11 @@ export default {
       });
     }
 
-    // INFORMACJE O ZALOGOWANYM UŻYTKOWNIKU
+    // DANE ZALOGOWANEGO UŻYTKOWNIKA
     if (url.pathname === "/me") {
-      const cookie =
-        request.headers.get("Cookie") || "";
+      const session = await getSession(request, env);
 
-      const match =
-        cookie.match(/tap_session=([^;]+)/);
-
-      if (!match) {
+      if (!session) {
         return new Response(
           JSON.stringify({
             loggedIn: false
@@ -152,60 +204,15 @@ export default {
         );
       }
 
-      try {
-        const cookieValue = match[1];
-        const parts = cookieValue.split(".");
+      const user = await env.DB.prepare(`
+        SELECT discord_id, username, balance
+        FROM users
+        WHERE discord_id = ?
+      `)
+        .bind(session.discordId)
+        .first();
 
-        if (parts.length !== 2) {
-          throw new Error("Invalid session");
-        }
-
-        const encodedData = parts[0];
-        const signature = parts[1];
-
-        const sessionData = atob(encodedData);
-
-        const valid = await verify(
-          sessionData,
-          signature,
-          env.SESSION_SECRET
-        );
-
-        if (!valid) {
-          throw new Error("Invalid signature");
-        }
-
-        const separator = sessionData.indexOf(":");
-
-        if (separator === -1) {
-          throw new Error("Invalid session data");
-        }
-
-        const discordId =
-          sessionData.slice(0, separator);
-
-        const username =
-          sessionData.slice(separator + 1);
-
-        const isAdmin =
-          discordId === env.ADMIN_DISCORD_ID;
-
-        return new Response(
-          JSON.stringify({
-            loggedIn: true,
-            discordId,
-            username,
-            balance: 0,
-            isAdmin
-          }),
-          {
-            headers: {
-              "Content-Type": "application/json"
-            }
-          }
-        );
-
-      } catch {
+      if (!user) {
         return new Response(
           JSON.stringify({
             loggedIn: false
@@ -217,6 +224,24 @@ export default {
           }
         );
       }
+
+      const isAdmin =
+        session.discordId === env.ADMIN_DISCORD_ID;
+
+      return new Response(
+        JSON.stringify({
+          loggedIn: true,
+          discordId: user.discord_id,
+          username: user.username,
+          balance: user.balance,
+          isAdmin
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      );
     }
 
     // RESZTA STRONY
