@@ -9,6 +9,13 @@
     "ADMIN_DISCORD_ID": "1033661957313658951"
   },
 
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_id": "7d316d2f-c027-4aef-a5ae-500072cd59bc"
+    }
+  ],
+
   "assets": {
     "directory": "."
   }
