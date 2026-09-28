@@ -16,11 +16,33 @@ async function sign(value, secret) {
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
+async function verify(value, signature, secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const signatureBytes = Uint8Array.from(
+    atob(signature),
+    char => char.charCodeAt(0)
+  );
+
+  return crypto.subtle.verify(
+    "HMAC",
+    key,
+    signatureBytes,
+    new TextEncoder().encode(value)
+  );
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Logowanie przez Discord
+    // LOGOWANIE DISCORD
     if (url.pathname === "/login") {
       const discordUrl =
         "https://discord.com/oauth2/authorize" +
@@ -36,7 +58,7 @@ export default {
       return Response.redirect(discordUrl, 302);
     }
 
-    // Powrót z Discorda
+    // POWRÓT Z DISCORDA
     if (url.pathname === "/callback") {
       const code = url.searchParams.get("code");
 
@@ -109,7 +131,7 @@ export default {
       });
     }
 
-    // Informacje o zalogowanym użytkowniku
+    // INFORMACJE O ZALOGOWANYM UŻYTKOWNIKU
     if (url.pathname === "/me") {
       const cookie =
         request.headers.get("Cookie") || "";
@@ -131,28 +153,50 @@ export default {
       }
 
       try {
-        const decoded =
-          atob(match[1].split(".")[0]);
+        const cookieValue = match[1];
+        const parts = cookieValue.split(".");
 
-        const separator =
-          decoded.indexOf(":");
-
-        if (separator === -1) {
+        if (parts.length !== 2) {
           throw new Error("Invalid session");
         }
 
+        const encodedData = parts[0];
+        const signature = parts[1];
+
+        const sessionData = atob(encodedData);
+
+        const valid = await verify(
+          sessionData,
+          signature,
+          env.SESSION_SECRET
+        );
+
+        if (!valid) {
+          throw new Error("Invalid signature");
+        }
+
+        const separator = sessionData.indexOf(":");
+
+        if (separator === -1) {
+          throw new Error("Invalid session data");
+        }
+
         const discordId =
-          decoded.slice(0, separator);
+          sessionData.slice(0, separator);
 
         const username =
-          decoded.slice(separator + 1);
+          sessionData.slice(separator + 1);
+
+        const isAdmin =
+          discordId === env.ADMIN_DISCORD_ID;
 
         return new Response(
           JSON.stringify({
             loggedIn: true,
             discordId,
             username,
-            balance: 0
+            balance: 0,
+            isAdmin
           }),
           {
             headers: {
@@ -160,6 +204,7 @@ export default {
             }
           }
         );
+
       } catch {
         return new Response(
           JSON.stringify({
@@ -174,7 +219,7 @@ export default {
       }
     }
 
-    // Reszta strony
+    // RESZTA STRONY
     return env.ASSETS.fetch(request);
   }
 };
